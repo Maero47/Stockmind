@@ -1,0 +1,159 @@
+@import "tailwindcss";
+
+/* ── Tailwind v4 custom theme ─────────────────────────────────────────────── */
+@theme {
+  /* Backgrounds */
+  --color-bg-base:     #080C14;
+  --color-bg-surface:  #0D1421;
+  --color-bg-elevated: #111827;
+  --color-bg-subtle:   #1A2235;
+
+  /* Accents */
+  --color-accent-green: #00E676;
+  --color-accent-red:   #FF3D57;
+  --color-accent-blue:  #2979FF;
+  --color-accent-amber: #FFB300;
+
+  /* Text */
+  --color-text-primary:   #E8EDF5;
+  --color-text-secondary: #8B97B0;
+  --color-text-muted:     #4A5568;
+
+  /* Borders */
+  --color-border:        rgba(255,255,255,0.06);
+  --color-border-bright: rgba(255,255,255,0.12);
+
+  /* Fonts */
+  --font-display: var(--font-dm-mono), ui-monospace, monospace;
+  --font-body:    var(--font-geist),   ui-sans-serif, system-ui, sans-serif;
+  --font-mono:    var(--font-dm-mono), ui-monospace, monospace;
+  --font-sans:    var(--font-geist),   ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ── CSS custom properties (consumed by inline styles / JS) ──────────────── */
+:root {
+  --bg-base:        #080C14;
+  --bg-surface:     #0D1421;
+  --bg-elevated:    #111827;
+  --bg-subtle:      #1A2235;
+
+  --accent-green:   #00E676;
+  --accent-red:     #FF3D57;
+  --accent-blue:    #2979FF;
+  --accent-amber:   #FFB300;
+
+  --text-primary:   #E8EDF5;
+  --text-secondary: #8B97B0;
+  --text-muted:     #4A5568;
+
+  --border:         rgba(255,255,255,0.06);
+  --border-bright:  rgba(255,255,255,0.12);
+}
+
+/* ── Base resets ─────────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Typography utilities ────────────────────────────────────────────────── */
+
+/* Numbers, tickers, prices → DM Mono */
+.font-display,
+.tabular-nums {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Animated dot grid background (hero section) */
+.dot-grid {
+  background-image: radial-gradient(
+    circle,
+    rgba(255,255,255,0.06) 1px,
+    transparent 1px
+  );
+  background-size: 28px 28px;
+}
+
+/* ── Scrollbar styling ───────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-surface);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--bg-subtle);
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* ── Glassmorphism card border ───────────────────────────────────────────── */
+.glass-card {
+  background: linear-gradient(
+    135deg,
+    var(--bg-surface) 0%,
+    rgba(13, 20, 33, 0) 100%
+  );
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  backdrop-filter: blur(8px);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.glass-card:hover {
+  border-color: var(--border-bright);
+}
+.glass-card.glow-green:hover {
+  box-shadow: 0 0 20px rgba(0, 230, 118, 0.08);
+}
+.glass-card.glow-red:hover {
+  box-shadow: 0 0 20px rgba(255, 61, 87, 0.08);
+}
+
+/* ── Blinking cursor for streaming text ─────────────────────────────────── */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+.cursor-blink::after {
+  content: "▋";
+  animation: blink 1s step-start infinite;
+  color: var(--accent-green);
+  margin-left: 1px;
+}
+
+/* ── Signal badge glow ───────────────────────────────────────────────────── */
+.badge-buy  { box-shadow: 0 0 12px rgba(0, 230, 118, 0.25); }
+.badge-sell { box-shadow: 0 0 12px rgba(255, 61, 87, 0.25);  }
+.badge-hold { box-shadow: 0 0 12px rgba(255, 179, 0, 0.25);  }
+
+/* ── Price flash animations ─────────────────────────────────────────────── */
+@keyframes flash-up {
+  0%   { background-color: rgba(0, 230, 118, 0.35); }
+  100% { background-color: transparent; }
+}
+@keyframes flash-down {
+  0%   { background-color: rgba(255, 61, 87, 0.35); }
+  100% { background-color: transparent; }
+}
+@keyframes flash-neutral {
+  0%   { background-color: rgba(255,255,255,0.08); }
+  100% { background-color: transparent; }
+}
+.flash-up      { animation: flash-up      0.6s ease-out forwards; border-radius: 4px; }
+.flash-down    { animation: flash-down    0.6s ease-out forwards; border-radius: 4px; }
+.flash-neutral { animation: flash-neutral 0.4s ease-out forwards; border-radius: 4px; }
