@@ -23,12 +23,15 @@ async def _verify_token(token: str) -> dict:
     if res.status_code != 200:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
-    data = res.json()
-    return {
-        "user_id": data["id"],
-        "email":   data.get("email", ""),
-        "role":    data.get("role", "authenticated"),
-    }
+    try:
+        data = res.json()
+        return {
+            "user_id": data["id"],
+            "email":   data.get("email", ""),
+            "role":    data.get("role", "authenticated"),
+        }
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token response")
 
 
 async def get_current_user(authorization: str = Header(default="")) -> dict:

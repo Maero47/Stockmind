@@ -93,8 +93,8 @@ async def get_news(symbol: str):
     try:
         ticker = yf.Ticker(symbol)
         raw    = ticker.news or []
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch news: {exc}")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Failed to fetch news. Please try again.")
 
     results = []
     for item in raw[:10]:

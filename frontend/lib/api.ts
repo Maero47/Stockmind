@@ -251,6 +251,27 @@ export function streamAnalysis({
  * Tests an AI provider key by sending a minimal 1-token request.
  * Returns { ok: true } on success or { ok: false, error: string } on failure.
  */
+function _friendlyKeyError(raw: string, provider: AIProvider): string {
+  const s = raw.toLowerCase();
+  if (s.includes("401") || s.includes("authentication") || s.includes("invalid") || s.includes("incorrect") || s.includes("unauthorized") || s.includes("api key")) {
+    const names: Record<AIProvider, string> = { groq: "Groq", openai: "OpenAI", anthropic: "Anthropic", gemini: "Gemini" };
+    return `Invalid ${names[provider]} API key — double-check it and try again.`;
+  }
+  if (s.includes("403") || s.includes("forbidden") || s.includes("permission") || s.includes("quota")) {
+    return "This key doesn't have permission or has exceeded its quota.";
+  }
+  if (s.includes("429") || s.includes("rate limit")) {
+    return "Rate limit hit — wait a moment and try again.";
+  }
+  if (s.includes("timeout") || s.includes("timed out")) {
+    return "Request timed out — check your connection and try again.";
+  }
+  if (s.includes("network") || s.includes("fetch") || s.includes("failed to fetch")) {
+    return "Network error — make sure the backend is running.";
+  }
+  return "Connection failed — check your key and try again.";
+}
+
 export async function testProviderKey(
   provider: AIProvider,
   apiKey: string
@@ -279,11 +300,50 @@ export async function testProviderKey(
     });
 
     if (resolved) return { ok: true };
-    if (errorMsg) return { ok: false, error: errorMsg };
+    if (errorMsg) return { ok: false, error: _friendlyKeyError(errorMsg, provider) };
     return { ok: false, error: "Timed out — check your key and try again." };
   } catch (err: unknown) {
-    return { ok: false, error: (err as Error).message ?? "Unknown error" };
+    const raw = (err as Error).message ?? "";
+    return { ok: false, error: _friendlyKeyError(raw, provider) };
   }
+}
+
+// ── Watchlist ─────────────────────────────────────────────────────────────────
+
+export async function getWatchlist() {
+  return apiFetch<{ symbol: string; added_at: string }[]>("/api/watchlist");
+}
+
+export async function addToWatchlist(symbol: string) {
+  return apiFetch<{ symbol: string }>("/api/watchlist", {
+    method: "POST",
+    body: JSON.stringify({ symbol }),
+  });
+}
+
+export async function removeFromWatchlist(symbol: string) {
+  return apiFetch<void>(`/api/watchlist/${encodeURIComponent(symbol)}`, { method: "DELETE" });
+}
+
+// ── Alerts ────────────────────────────────────────────────────────────────────
+
+export async function getAlerts() {
+  return apiFetch<import("./types").PriceAlert[]>("/api/alerts");
+}
+
+export async function createAlert(symbol: string, target_price: number, direction: string) {
+  return apiFetch<import("./types").PriceAlert>("/api/alerts", {
+    method: "POST",
+    body: JSON.stringify({ symbol, target_price, direction }),
+  });
+}
+
+export async function deleteAlert(alertId: number) {
+  return apiFetch<void>(`/api/alerts/${alertId}`, { method: "DELETE" });
+}
+
+export async function triggerAlert(alertId: number) {
+  return apiFetch<{ triggered: boolean }>(`/api/alerts/${alertId}/trigger`, { method: "POST" });
 }
 
 // ── Health ────────────────────────────────────────────────────────────────────

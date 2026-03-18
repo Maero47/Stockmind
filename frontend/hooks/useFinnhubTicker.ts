@@ -72,9 +72,16 @@ export function useFinnhubTicker(symbol: string) {
       active.current = false;
       if (reconnectTimer) clearTimeout(reconnectTimer);
       if (wsRef.current) {
-        wsRef.current.send(JSON.stringify({ type: "unsubscribe", symbol: symbol.toUpperCase() }));
-        wsRef.current.close();
+        const ws = wsRef.current;
         wsRef.current = null;
+        ws.onopen  = null;
+        ws.onclose = null;
+        ws.onerror = null;
+        ws.onmessage = null;
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: "unsubscribe", symbol: symbol.toUpperCase() }));
+        }
+        ws.close();
       }
     };
   }, [symbol, shouldConnect]);

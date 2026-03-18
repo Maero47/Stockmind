@@ -155,13 +155,17 @@ function useChart(
     if (!chart.current) initChart();
     if (!chart.current || !candle.current || !vol.current) return;
 
+    const validBars = bars.filter(
+      (b) => b.open != null && b.high != null && b.low != null && b.close != null
+    );
+
     candle.current.setData(
-      bars.map((b) => ({ time: toUnix(b.timestamp) as any, open: b.open, high: b.high, low: b.low, close: b.close }))
+      validBars.map((b) => ({ time: toUnix(b.timestamp) as any, open: b.open, high: b.high, low: b.low, close: b.close }))
     );
     vol.current.setData(
-      bars.map((b) => ({
+      validBars.map((b) => ({
         time: toUnix(b.timestamp) as any,
-        value: b.volume,
+        value: b.volume ?? 0,
         color: b.close >= b.open ? "rgba(0,230,118,0.3)" : "rgba(255,61,87,0.3)",
       }))
     );

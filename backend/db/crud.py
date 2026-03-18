@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from db.models import Prediction, Search, Cache
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from db.models import Prediction, Search, Cache, WatchlistItem, PriceAlert
 
 
 # ── Cache ────────────────────────────────────────────────────────────────────
@@ -59,3 +60,75 @@ async def save_prediction(
     await db.commit()
     await db.refresh(pred)
     return pred
+
+
+# ── Watchlist ─────────────────────────────────────────────────────────────────
+
+async def get_watchlist(db: AsyncSession, user_id: str) -> list[WatchlistItem]:
+    result = await db.execute(
+        select(WatchlistItem).where(WatchlistItem.user_id == user_id).order_by(WatchlistItem.added_at.desc())
+    )
+    return list(result.scalars().all())
+
+
+async def add_to_watchlist(db: AsyncSession, user_id: str, symbol: str) -> None:
+    stmt = sqlite_insert(WatchlistItem).values(
+        user_id=user_id, symbol=symbol.upper(), added_at=datetime.utcnow()
+    ).on_conflict_do_nothing(index_elements=["user_id", "symbol"])
+    await db.execute(stmt)
+    await db.commit()
+
+
+async def remove_from_watchlist(db: AsyncSession, user_id: str, symbol: str) -> None:
+    await db.execute(
+        delete(WatchlistItem)
+        .where(WatchlistItem.user_id == user_id)
+        .where(WatchlistItem.symbol == symbol.upper())
+    )
+    await db.commit()
+
+
+# ── Price Alerts ──────────────────────────────────────────────────────────────
+
+async def get_alerts(db: AsyncSession, user_id: str) -> list[PriceAlert]:
+    result = await db.execute(
+        select(PriceAlert)
+        .where(PriceAlert.user_id == user_id)
+        .order_by(PriceAlert.created_at.desc())
+        .limit(100)
+    )
+    return list(result.scalars().all())
+
+
+async def create_alert(
+    db: AsyncSession, user_id: str, symbol: str, target_price: float, direction: str
+) -> PriceAlert:
+    alert = PriceAlert(
+        user_id=user_id, symbol=symbol.upper(),
+        target_price=target_price, direction=direction,
+    )
+    db.add(alert)
+    await db.commit()
+    await db.refresh(alert)
+    return alert
+
+
+async def delete_alert(db: AsyncSession, alert_id: int, user_id: str) -> bool:
+    result = await db.execute(
+        delete(PriceAlert)
+        .where(PriceAlert.id == alert_id)
+        .where(PriceAlert.user_id == user_id)
+    )
+    await db.commit()
+    return result.rowcount > 0
+
+
+async def mark_alert_triggered(db: AsyncSession, alert_id: int, user_id: str) -> bool:
+    result = await db.execute(
+        update(PriceAlert)
+        .where(PriceAlert.id == alert_id)
+        .where(PriceAlert.user_id == user_id)
+        .values(triggered=True, triggered_at=datetime.utcnow())
+    )
+    await db.commit()
+    return result.rowcount > 0

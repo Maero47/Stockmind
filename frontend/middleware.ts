@@ -28,9 +28,11 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
-  const isPublic = PUBLIC_PATHS.some(
-    (p) => path === p || path.startsWith(p + "/")
-  );
+  const isPublic =
+    PUBLIC_PATHS.some((p) => path === p || path.startsWith(p + "/")) ||
+    path === "/manifest.webmanifest" ||
+    path.startsWith("/icons/") ||
+    path === "/sw.js";
 
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();

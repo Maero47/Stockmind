@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, DM_Mono } from "next/font/google";
 import "./globals.css";
 import AuthListener from "@/components/AuthListener";
+import PWARegister from "@/components/PWARegister";
 
 const geist = Geist({
   variable: "--font-geist",
@@ -21,6 +22,13 @@ export const metadata: Metadata = {
     "AI-powered stock and crypto analysis. Bring your own API key. Real-time data, technical indicators, and ML predictions.",
   icons: {
     icon: "/favicon.ico",
+    apple: "/apple-touch-icon.png",
+  },
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "StockMind",
   },
 };
 
@@ -32,6 +40,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className={`${geist.variable} ${dmMono.variable} antialiased`}>
+        <PWARegister />
         <AuthListener />
         {children}
       </body>

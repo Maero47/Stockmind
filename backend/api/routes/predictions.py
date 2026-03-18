@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from db.database import get_db
 from db import crud
 from services.ml.xgboost_model import predict as ml_predict
+from api.dependencies.auth import get_current_user
 
 router = APIRouter(prefix="/api/predict", tags=["predictions"])
 
@@ -29,7 +30,11 @@ class PredictionResponse(BaseModel):
 # ── Route ─────────────────────────────────────────────────────────────────────
 
 @router.post("/{symbol}", response_model=PredictionResponse)
-async def predict_symbol(symbol: str, db: AsyncSession = Depends(get_db)):
+async def predict_symbol(
+    symbol: str,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
     """
     Train (or use cached) XGBoost model on 2 years of daily data for {symbol},
     then predict next-day price direction.
@@ -39,8 +44,8 @@ async def predict_symbol(symbol: str, db: AsyncSession = Depends(get_db)):
         result = ml_predict(symbol)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Prediction failed: {exc}")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Prediction failed. Please try again.")
 
     # Persist prediction to DB
     await crud.save_prediction(

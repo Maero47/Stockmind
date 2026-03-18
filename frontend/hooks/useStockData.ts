@@ -3,6 +3,7 @@
 import useSWR from "swr";
 import { getQuote, getRealtimeQuote, getHistory, getIndicators, getPrediction, getNews, searchStocks } from "@/lib/api";
 import type { TimePeriod, TimeInterval } from "@/lib/types";
+import { useStore } from "@/lib/store";
 
 // Homepage cards — yfinance, 30s refresh
 export function useQuote(symbol: string) {
@@ -43,16 +44,23 @@ export function useIndicators(symbol: string) {
   );
 }
 
+// Symbols where prediction returned 404 — skip future requests this session
+const _noPredict = new Set<string>();
+
 export function usePrediction(symbol: string) {
+  const user = useStore((s) => s.user);
   return useSWR(
-    symbol ? `prediction:${symbol}` : null,
+    symbol && user && !_noPredict.has(symbol) ? `prediction:${symbol}` : null,
     () => getPrediction(symbol),
     {
       revalidateOnFocus: false,
       revalidateOnReconnect: false,
-      // Don't retry on 404 — symbol simply isn't supported for ML prediction
       onErrorRetry: (err, _key, _config, revalidate, { retryCount }) => {
-        if (err?.message?.includes("404") || err?.message?.includes("Not Found")) return;
+        if (err?.message?.includes("404") || err?.message?.includes("Not Found")) {
+          _noPredict.add(symbol);
+          return;
+        }
+        if (err?.message?.includes("401") || err?.message?.includes("Unauthorized")) return;
         if (retryCount >= 2) return;
         setTimeout(() => revalidate({ retryCount }), 3000);
       },

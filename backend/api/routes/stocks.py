@@ -1,5 +1,5 @@
 import yfinance as yf
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, HTTPException, Depends, Query, Path
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from db.database import get_db
@@ -98,8 +98,10 @@ async def get_trending(category: str = Query("stocks", pattern="^(stocks|crypto|
     return {"category": category, "symbols": symbols}
 
 
+_SYM = Path(..., min_length=1, max_length=20, pattern=r"^[A-Za-z0-9.\-\^=]+$")
+
 @router.get("/{symbol}/realtime", response_model=QuoteResponse)
-async def get_realtime(symbol: str):
+async def get_realtime(symbol: str = _SYM):
     """
     Finnhub real-time quote with 3s cache.
     Used by the stock detail page — 1 Finnhub call per refresh, profile cached 1h.
@@ -123,7 +125,7 @@ async def get_realtime(symbol: str):
 
 
 @router.get("/{symbol}", response_model=QuoteResponse)
-async def get_stock(symbol: str, db: AsyncSession = Depends(get_db)):
+async def get_stock(symbol: str = _SYM, db: AsyncSession = Depends(get_db)):
     """yfinance quote for homepage cards (30s cache)."""
     symbol = symbol.upper()
     try:
@@ -160,7 +162,7 @@ async def get_stock(symbol: str, db: AsyncSession = Depends(get_db)):
 
 @router.get("/{symbol}/history", response_model=HistoryResponse)
 async def get_stock_history(
-    symbol: str,
+    symbol: str = _SYM,
     period: str = Query("1mo", pattern="^(1d|5d|1mo|3mo|6mo|1y|2y)$"),
     interval: str = Query("1d", pattern="^(1m|5m|15m|30m|60m|1d|1wk|1mo)$"),
 ):
@@ -184,7 +186,7 @@ async def get_stock_history(
 
 
 @router.get("/{symbol}/indicators")
-async def get_indicators(symbol: str):
+async def get_indicators(symbol: str = _SYM):
     """RSI, MACD, Bollinger Bands, EMAs, Stochastic and more via feature_engineering.py."""
     import math as _math
     import pandas as pd

@@ -123,27 +123,24 @@ function ProviderCard({ id, isLoggedIn, onToast }: ProviderCardProps) {
   // Keep draft in sync when store changes
   useEffect(() => { if (!editing) setDraft(sessionKey); }, [sessionKey]);
 
-  const handleSave = async () => {
-    const key = draft.trim();
-    if (!key) return;
-
+  // Save is only reachable after a successful test — not exposed directly
+  const handleSaveAfterTest = async (key: string) => {
     setApiKey(id, key);
     setEditing(false);
-    setTestResult(null);
 
     if (isLoggedIn) {
       setSaving(true);
       try {
         await saveKey(id, key);
         addSavedProvider(id);
-        onToast("success", `${info.name} key saved & encrypted in your account`);
+        onToast("success", `${info.name} connected & saved to account ✓`);
       } catch {
-        onToast("error", `Saved locally — could not sync to account`);
+        onToast("success", `${info.name} connected (saved locally only)`);
       } finally {
         setSaving(false);
       }
     } else {
-      onToast("success", `${info.name} key saved for this session`);
+      onToast("success", `${info.name} connected successfully ✓`);
     }
   };
 
@@ -180,27 +177,15 @@ function ProviderCard({ id, isLoggedIn, onToast }: ProviderCardProps) {
 
     if (result.ok) {
       setTestResult("ok");
-      // Auto-save on successful test
-      setApiKey(id, key);
-      setEditing(false);
-
-      if (isLoggedIn) {
-        setSaving(true);
-        try {
-          await saveKey(id, key);
-          addSavedProvider(id);
-          onToast("success", `${info.name} connected & saved to account ✓`);
-        } catch {
-          onToast("success", `${info.name} connected (saved locally only)`);
-        } finally {
-          setSaving(false);
-        }
+      if (editing) {
+        // Only save when in edit mode (new or updated key)
+        await handleSaveAfterTest(key);
       } else {
-        onToast("success", `${info.name} connected successfully ✓`);
+        onToast("success", `${info.name} key is valid ✓`);
       }
     } else {
       setTestResult("fail");
-      onToast("error", result.error ?? "Connection failed");
+      onToast("error", result.error ?? "Invalid key — not saved");
     }
   };
 
@@ -323,7 +308,7 @@ function ProviderCard({ id, isLoggedIn, onToast }: ProviderCardProps) {
                 type={visible ? "text" : "password"}
                 value={draft}
                 onChange={(e) => { setDraft(e.target.value); setTestResult(null); }}
-                onKeyDown={(e) => e.key === "Enter" && handleSave()}
+                onKeyDown={(e) => e.key === "Enter" && handleTest()}
                 readOnly={!editing}
                 placeholder={editing ? `Paste your ${info.name} API key…` : "••••••••••••••••••••••••"}
                 className="flex-1 bg-transparent outline-none px-3 py-3 text-sm font-mono"
@@ -377,28 +362,11 @@ function ProviderCard({ id, isLoggedIn, onToast }: ProviderCardProps) {
           >
             {testing
               ? <><Loader2 size={13} className="animate-spin" /> Testing…</>
-              : <><Zap size={13} style={{ color: info.color }} /> Test Connection</>
+              : editing
+                ? <><Zap size={13} style={{ color: info.color }} /> Test &amp; Save</>
+                : <><Zap size={13} style={{ color: info.color }} /> Test Connection</>
             }
           </button>
-
-          {/* Save (editing mode) */}
-          {editing && draft.trim() && (
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-60"
-              style={{
-                backgroundColor: `${info.color}18`,
-                border: `1px solid ${info.color}40`,
-                color: info.color,
-              }}
-            >
-              {saving
-                ? <><Loader2 size={13} className="animate-spin" /> Saving…</>
-                : <><CheckCircle2 size={13} /> Save Key</>
-              }
-            </button>
-          )}
 
           {/* Cancel editing */}
           {editing && hasKey && (

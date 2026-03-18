@@ -1,10 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { TrendingUp, TrendingDown, Minus, Wifi, WifiOff } from "lucide-react";
 import type { StockQuote } from "@/lib/types";
 import { useBinanceTicker } from "@/hooks/useBinanceTicker";
 import { useFinnhubTicker } from "@/hooks/useFinnhubTicker";
+import { useAlerts } from "@/hooks/useAlerts";
+import { usePriceAlertChecker } from "@/hooks/usePriceAlertChecker";
+import WatchlistButton from "@/components/watchlist/WatchlistButton";
+import AlertButton from "@/components/alerts/AlertButton";
+import AlertToast from "@/components/alerts/AlertToast";
+import type { AlertToastData } from "@/components/alerts/AlertToast";
 
 function fmt(n: number | null, dp = 2) {
   return n == null ? "—" : n.toLocaleString("en-US", { minimumFractionDigits: dp, maximumFractionDigits: dp });
@@ -86,6 +92,13 @@ export default function StockHeader({ quote, isLoading }: Props) {
 
   const flashClass = useFlash(price);
 
+  // Price alerts + in-app toast
+  const { alerts, trigger } = useAlerts();
+  const [activeToast, setActiveToast] = useState<AlertToastData | null>(null);
+  const onTrigger = useCallback((id: number) => trigger(id), [trigger]);
+  const onToast   = useCallback((data: AlertToastData) => setActiveToast(data), []);
+  usePriceAlertChecker(symbol, price, alerts, onTrigger, onToast);
+
   if (isLoading || !quote) {
     return (
       <div className="animate-pulse space-y-2 mb-6">
@@ -120,13 +133,17 @@ export default function StockHeader({ quote, isLoading }: Props) {
             {quote.exchange && `${quote.exchange} · `}{quote.sector || quote.name}
           </span>
         </div>
-        {/* Live indicator */}
-        {isLive && (
-          <span className="flex items-center gap-1 text-xs font-mono" style={{ color: wsConnected ? "var(--accent-green)" : "var(--text-muted)" }}>
-            {wsConnected ? <Wifi size={11} /> : <WifiOff size={11} />}
-            {wsConnected ? "LIVE" : "connecting…"}
-          </span>
-        )}
+        {/* Actions: watchlist + alerts + live indicator */}
+        <div className="flex items-center gap-2">
+          <WatchlistButton symbol={symbol} />
+          <AlertButton symbol={symbol} />
+          {isLive && (
+            <span className="flex items-center gap-1 text-xs font-mono" style={{ color: wsConnected ? "var(--accent-green)" : "var(--text-muted)" }}>
+              {wsConnected ? <Wifi size={11} /> : <WifiOff size={11} />}
+              {wsConnected ? "LIVE" : "connecting…"}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Name */}
@@ -171,6 +188,9 @@ export default function StockHeader({ quote, isLoading }: Props) {
           </div>
         ))}
       </div>
+
+      {/* In-app toast for alert triggers */}
+      <AlertToast toast={activeToast} onClose={() => setActiveToast(null)} />
     </div>
   );
 }

@@ -132,6 +132,26 @@ export interface TrendingResponse {
   symbols: string[];
 }
 
+// ── Watchlist ─────────────────────────────────────────────────────────────────
+
+export interface WatchlistItem {
+  symbol: string;
+  added_at: string;
+}
+
+// ── Price Alerts ──────────────────────────────────────────────────────────────
+
+export type AlertDirection = "above" | "below";
+
+export interface PriceAlert {
+  id: number;
+  symbol: string;
+  target_price: number;
+  direction: AlertDirection;
+  triggered: boolean;
+  created_at: string;
+}
+
 // ── Provider metadata (used in UI) ───────────────────────────────────────────
 
 export interface ProviderInfo {
