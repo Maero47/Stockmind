@@ -43,8 +43,8 @@ from services.ml.feature_engineering import (
 # If model confidence < this threshold the signal is reported as HOLD
 HOLD_THRESHOLD = 0.55
 
-# ── In-memory model cache: symbol → (model, label_encoder, ts) ───────────────
-_MODEL_CACHE: dict[str, tuple[XGBClassifier, LabelEncoder, float]] = {}
+# ── In-memory model cache: symbol → (model, meta, expires_at) ────────────────
+_MODEL_CACHE: dict[str, tuple[XGBClassifier, dict, float]] = {}
 _MODEL_TTL = 3600  # retrain after 1 hour
 
 
@@ -67,7 +67,7 @@ def _fetch_ohlcv(symbol: str, period: str = "2y") -> pd.DataFrame:
 
 # ── Training ──────────────────────────────────────────────────────────────────
 
-def _train(symbol: str) -> tuple[XGBClassifier, LabelEncoder, dict]:
+def _train(symbol: str) -> tuple[XGBClassifier, dict]:
     df = _fetch_ohlcv(symbol, period="2y")
     X, y = build_feature_matrix(df)
 
@@ -104,17 +104,17 @@ def _train(symbol: str) -> tuple[XGBClassifier, LabelEncoder, dict]:
         "samples_trained": len(X_train),
         "samples_test": len(X_test),
     }
-    return model, None, meta
+    return model, meta
 
 
 def _get_model(symbol: str) -> tuple[XGBClassifier, dict]:
     """Returns cached model or trains a fresh one."""
     entry = _MODEL_CACHE.get(symbol.upper())
     if entry and time.time() < entry[2]:
-        return entry[0], entry[3]
+        return entry[0], entry[1]
 
-    model, _, meta = _train(symbol.upper())
-    _MODEL_CACHE[symbol.upper()] = (model, None, time.time() + _MODEL_TTL, meta)
+    model, meta = _train(symbol.upper())
+    _MODEL_CACHE[symbol.upper()] = (model, meta, time.time() + _MODEL_TTL)
     return model, meta
 
 

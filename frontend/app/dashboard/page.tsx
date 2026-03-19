@@ -11,6 +11,7 @@ import NewsPanel from "@/components/news/NewsPanel";
 import ChatInterface from "@/components/ai/ChatInterface";
 import WatchlistTab from "@/components/watchlist/WatchlistTab";
 import AllAlertsPanel from "@/components/alerts/AllAlertsPanel";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import { useStore } from "@/lib/store";
 import { useQuote } from "@/hooks/useStockData";
 
@@ -97,27 +98,37 @@ export default function DashboardPage() {
                 className="rounded-xl p-5"
                 style={{ backgroundColor: "var(--bg-surface)", border: "1px solid var(--border)" }}
               >
-                <StockHeader quote={quote} isLoading={quoteLoading} />
+                <ErrorBoundary label="Stock header failed to load">
+                  <StockHeader quote={quote} isLoading={quoteLoading} />
+                </ErrorBoundary>
               </div>
 
               {/* Candlestick chart */}
               <Section label="Price Chart">
-                <CandlestickChart symbol={selectedSymbol} />
+                <ErrorBoundary label="Chart failed to load">
+                  <CandlestickChart symbol={selectedSymbol} />
+                </ErrorBoundary>
               </Section>
 
               {/* Technical indicators */}
               <Section label="Technical Indicators">
-                <TechnicalIndicators symbol={selectedSymbol} />
+                <ErrorBoundary label="Indicators failed to load">
+                  <TechnicalIndicators symbol={selectedSymbol} />
+                </ErrorBoundary>
               </Section>
 
               {/* ML Prediction */}
               <Section label="ML Prediction">
-                <PredictionCard symbol={selectedSymbol} />
+                <ErrorBoundary label="Prediction failed to load">
+                  <PredictionCard symbol={selectedSymbol} />
+                </ErrorBoundary>
               </Section>
 
               {/* News */}
               <Section label="Recent News">
-                <NewsPanel symbol={selectedSymbol} />
+                <ErrorBoundary label="News failed to load">
+                  <NewsPanel symbol={selectedSymbol} />
+                </ErrorBoundary>
               </Section>
             </div>
 
