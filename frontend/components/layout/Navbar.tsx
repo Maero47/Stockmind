@@ -48,7 +48,7 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
         {/* Logo */}
         <Link href="/" className="flex items-center">
-          <Image src="/logo.png" alt="StockMind" width={140} height={40} style={{ objectFit: "contain" }} priority />
+          <Image src="/logo.png" alt="StockMind" width={140} height={40} style={{ objectFit: "contain", height: "auto" }} priority />
         </Link>
 
         {/* Nav links */}

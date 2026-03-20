@@ -1,7 +1,13 @@
 from fastapi import APIRouter
 from fastapi.responses import RedirectResponse
+from services.data.stock_fetcher import get_crypto_movers
 
 router = APIRouter(prefix="/api/crypto", tags=["crypto"])
+
+
+@router.get("/movers")
+async def crypto_movers():
+    return get_crypto_movers()
 
 
 @router.get("/{symbol}")

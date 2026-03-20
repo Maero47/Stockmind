@@ -8,23 +8,24 @@ import os
 import time
 import finnhub
 import yfinance as yf
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from typing import Any
 
 _FINNHUB_KEY = os.environ.get("FINNHUB_API_KEY", "")
 _finnhub_client = finnhub.Client(api_key=_FINNHUB_KEY) if _FINNHUB_KEY else None
 
-# ── TTL cache ─────────────────────────────────────────────────────────────────
-_CACHE: dict[str, tuple[float, Any]] = {}
+# ── In-memory cache ───────────────────────────────────────────────────────────
+_MEM_CACHE: dict[str, tuple[float, Any]] = {}
 
 def _cache_get(key: str, ttl: int) -> Any | None:
-    entry = _CACHE.get(key)
+    entry = _MEM_CACHE.get(key)
     if entry and time.time() < entry[0]:
         return entry[1]
     return None
 
-def _cache_set(key: str, value: Any, ttl: int):
-    _CACHE[key] = (time.time() + ttl, value)
+def _cache_set(key: str, value: Any, ttl: int) -> None:
+    _MEM_CACHE[key] = (time.time() + ttl, value)
 
 
 def _safe(val):
@@ -36,6 +37,38 @@ def _safe(val):
     except Exception:
         return None
 
+
+# ── Meta cache (name/sector/pe — 24h TTL, rarely changes) ────────────────────
+_META_CACHE: dict[str, tuple[float, dict]] = {}
+
+def _get_meta(symbol: str) -> dict:
+    """Slow fields (name, sector, pe_ratio) — cached 24h so ticker.info only runs once per symbol per day."""
+    entry = _META_CACHE.get(symbol)
+    if entry and time.time() < entry[0]:
+        return entry[1]
+    try:
+        info = yf.Ticker(symbol).info
+        meta = {
+            "name":     info.get("longName") or info.get("shortName") or symbol,
+            "pe_ratio": _safe(info.get("trailingPE")),
+            "currency": info.get("currency", "USD"),
+            "exchange": info.get("exchange", ""),
+            "sector":   info.get("sector", ""),
+            "industry": info.get("industry", ""),
+        }
+        _META_CACHE[symbol] = (time.time() + 86400, meta)
+        return meta
+    except Exception:
+        return {"name": symbol, "pe_ratio": None, "currency": "USD", "exchange": "", "sector": "", "industry": ""}
+
+def _seed_meta(symbol: str, name: str, currency: str = "USD", exchange: str = "") -> None:
+    """Pre-populate meta from screen data so ticker.info is never called for these symbols."""
+    if symbol not in _META_CACHE or time.time() >= _META_CACHE[symbol][0]:
+        _META_CACHE[symbol] = (time.time() + 86400, {
+            "name": name, "pe_ratio": None,
+            "currency": currency, "exchange": exchange,
+            "sector": "", "industry": "",
+        })
 
 # ── Company profile cache (1h TTL — name/sector rarely changes) ───────────────
 _PROFILE_CACHE: dict[str, tuple[float, dict]] = {}
@@ -57,18 +90,19 @@ def _get_profile(symbol: str) -> dict:
 # ── Real-time quote (Finnhub, 3s cache) — stock detail page ──────────────────
 
 def _get_yf_meta(symbol: str) -> dict:
-    """Volume, PE, 52W high/low from yfinance — cached 5 min (slow-changing fields)."""
+    """Volume, PE, 52W high/low from yfinance — cached 5 min."""
     key = f"yf_meta:{symbol}"
     cached = _cache_get(key, 300)
     if cached:
         return cached
     try:
-        info = yf.Ticker(symbol).fast_info
+        fi = yf.Ticker(symbol).fast_info
+        meta = _get_meta(symbol)  # uses 24h cache — avoids repeated ticker.info calls
         result = {
-            "volume":   _safe(info.three_month_average_volume),
-            "52w_high": _safe(info.year_high),
-            "52w_low":  _safe(info.year_low),
-            "pe_ratio": _safe(yf.Ticker(symbol).info.get("trailingPE")),
+            "volume":   _safe(fi.three_month_average_volume),
+            "52w_high": _safe(fi.year_high),
+            "52w_low":  _safe(fi.year_low),
+            "pe_ratio": meta["pe_ratio"],
         }
         _cache_set(key, result, 300)
         return result
@@ -137,17 +171,16 @@ def get_quote_yfinance(symbol: str) -> dict:
     if cached:
         return cached
 
-    ticker = yf.Ticker(symbol)
-    info   = ticker.fast_info
+    info = yf.Ticker(symbol).fast_info  # fast — no full HTTP request
     try:
         regular_price = _safe(info.last_price)
         prev_close    = _safe(info.previous_close)
         change        = round(regular_price - prev_close, 4) if regular_price and prev_close else None
         change_pct    = round((change / prev_close) * 100, 4) if change and prev_close else None
-        full_info     = ticker.info
+        meta          = _get_meta(symbol)  # cached 24h — ticker.info only runs once per symbol per day
         result = {
             "symbol":     symbol,
-            "name":       full_info.get("longName") or full_info.get("shortName", symbol),
+            "name":       meta["name"],
             "price":      regular_price,
             "prev_close": prev_close,
             "change":     change,
@@ -157,13 +190,13 @@ def get_quote_yfinance(symbol: str) -> dict:
             "day_low":    _safe(info.day_low),
             "volume":     _safe(info.three_month_average_volume),
             "market_cap": _safe(info.market_cap),
-            "pe_ratio":   _safe(full_info.get("trailingPE")),
+            "pe_ratio":   meta["pe_ratio"],
             "52w_high":   _safe(info.year_high),
             "52w_low":    _safe(info.year_low),
-            "currency":   full_info.get("currency", "USD"),
-            "exchange":   full_info.get("exchange", ""),
-            "sector":     full_info.get("sector", ""),
-            "industry":   full_info.get("industry", ""),
+            "currency":   meta["currency"],
+            "exchange":   meta["exchange"],
+            "sector":     meta["sector"],
+            "industry":   meta["industry"],
         }
     except Exception as exc:
         raise ValueError(f"Could not fetch quote for {symbol}: {exc}") from exc
@@ -205,31 +238,64 @@ def _get_finnhub_candles(symbol: str, resolution: str, from_ts: int, to_ts: int)
 
 # ── History ───────────────────────────────────────────────────────────────────
 
-def get_history(symbol: str, period: str = "1mo", interval: str = "1d") -> list[dict]:
+def get_history(
+    symbol: str,
+    period: str = "1mo",
+    interval: str = "1d",
+    start: str | None = None,
+    end: str | None = None,
+) -> list[dict]:
     """
     OHLCV history.
-    1d / 5d periods → Finnhub intraday candles (real-time, 60s cache).
-    All other periods → yfinance (5-min cache).
-    Falls back to yfinance if Finnhub unavailable or returns no data.
+    Custom start/end → yfinance date-range query (bypasses Finnhub).
+    1d / 5d periods  → Finnhub intraday candles (60s cache).
+    All other periods → yfinance (900s cache).
     """
     symbol = symbol.upper()
+
+    if start and end:
+        key    = f"history:{symbol}:custom:{start}:{end}:{interval}"
+        ttl    = 900
+        cached = _cache_get(key, ttl)
+        if isinstance(cached, list) and cached and isinstance(cached[0], dict):
+            return cached
+        df = yf.download(symbol, start=start, end=end, interval=interval, progress=False, auto_adjust=True)
+        if df.empty:
+            raise ValueError(f"No history data for {symbol}")
+        if hasattr(df.columns, "levels"):
+            df.columns = df.columns.get_level_values(0)
+        records = []
+        for ts, row in df.iterrows():
+            if any(_safe(row[c]) is None for c in ("Open", "High", "Low", "Close")):
+                continue
+            records.append({
+                "timestamp": ts.isoformat(),
+                "open":   round(float(row["Open"]),   4),
+                "high":   round(float(row["High"]),   4),
+                "low":    round(float(row["Low"]),    4),
+                "close":  round(float(row["Close"]),  4),
+                "volume": int(row["Volume"]) if _safe(row["Volume"]) is not None else 0,
+            })
+        _cache_set(key, records, ttl)
+        return records
+
     key    = f"history:{symbol}:{period}:{interval}"
-    ttl    = 60 if period in ("1d", "5d") else 300
+    ttl    = 60 if period in ("1d", "5d") else 900
     cached = _cache_get(key, ttl)
-    if cached:
+    if isinstance(cached, list) and cached and isinstance(cached[0], dict):
         return cached
 
     # Intraday via Finnhub
+    _INTERVAL_TO_RES = {"1m": "1", "5m": "5", "15m": "15", "30m": "30", "60m": "60"}
     if _finnhub_client and period in ("1d", "5d"):
         try:
             now = int(time.time())
+            resolution = _INTERVAL_TO_RES.get(interval, "5" if period == "1d" else "60")
             if period == "1d":
                 today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-                from_ts    = int(today.timestamp())
-                resolution = "5"
-            else:  # 5d
-                from_ts    = now - 5 * 24 * 3600
-                resolution = "60"
+                from_ts = int(today.timestamp())
+            else:
+                from_ts = now - 5 * 24 * 3600
             records = _get_finnhub_candles(symbol, resolution, from_ts, now)
             _cache_set(key, records, ttl)
             return records
@@ -246,13 +312,15 @@ def get_history(symbol: str, period: str = "1mo", interval: str = "1d") -> list[
 
     records = []
     for ts, row in df.iterrows():
+        if any(_safe(row[c]) is None for c in ("Open", "High", "Low", "Close")):
+            continue
         records.append({
             "timestamp": ts.isoformat(),
             "open":   round(float(row["Open"]),   4),
             "high":   round(float(row["High"]),   4),
             "low":    round(float(row["Low"]),    4),
             "close":  round(float(row["Close"]),  4),
-            "volume": int(row["Volume"]),
+            "volume": int(row["Volume"]) if _safe(row["Volume"]) is not None else 0,
         })
 
     _cache_set(key, records, ttl)
@@ -262,6 +330,42 @@ def get_history(symbol: str, period: str = "1mo", interval: str = "1d") -> list[
 # ── Trending ──────────────────────────────────────────────────────────────────
 
 _CRYPTO_SYMBOLS = ["BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD", "XRP-USD", "DOGE-USD", "ADA-USD", "AVAX-USD"]
+
+_CRYPTO_MOVERS_UNIVERSE = [
+    "BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD", "XRP-USD", "DOGE-USD",
+    "ADA-USD", "AVAX-USD", "MATIC-USD", "DOT-USD", "LINK-USD", "LTC-USD",
+    "ATOM-USD", "UNI-USD", "ICP-USD", "NEAR-USD", "APT-USD", "OP-USD",
+    "ARB-USD", "FIL-USD", "STX-USD", "INJ-USD", "SUI-USD", "TIA-USD",
+    "SEI-USD", "TON-USD", "HBAR-USD", "VET-USD", "ALGO-USD", "MANA-USD",
+]
+
+def get_crypto_movers(top_n: int = 5) -> dict:
+    key = "crypto_movers"
+    cached = _cache_get(key, 120)
+    if cached:
+        return cached
+
+    def _fetch(symbol: str):
+        try:
+            q = get_quote(symbol)
+            if q.get("change_pct") is not None and q.get("price"):
+                return q
+        except Exception:
+            pass
+        return None
+
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = {executor.submit(_fetch, s): s for s in _CRYPTO_MOVERS_UNIVERSE}
+        results = [f.result() for f in as_completed(futures)]
+
+    results = [r for r in results if r is not None]
+    results.sort(key=lambda x: x["change_pct"])
+    losers  = results[:top_n]
+    gainers = list(reversed(results[-top_n:]))
+
+    out = {"gainers": gainers, "losers": losers}
+    _cache_set(key, out, 120)
+    return out
 _ETF_SYMBOLS    = ["SPY", "QQQ", "VTI", "IWM", "GLD", "TLT", "XLK", "ARKK"]
 
 def get_trending(category: str = "stocks") -> list[str]:
@@ -275,15 +379,21 @@ def get_trending(category: str = "stocks") -> list[str]:
             result = _CRYPTO_SYMBOLS
         elif category == "etf":
             result = _ETF_SYMBOLS
-        elif category == "gainers":
-            r = yf.screen("day_gainers", count=8)
-            result = [q.get("symbol") for q in (r.get("quotes") or []) if q.get("symbol")][:8]
-        elif category == "losers":
-            r = yf.screen("day_losers", count=8)
-            result = [q.get("symbol") for q in (r.get("quotes") or []) if q.get("symbol")][:8]
-        else:  # stocks — most active
-            r = yf.screen("most_actives", count=8)
-            result = [q.get("symbol") for q in (r.get("quotes") or []) if q.get("symbol")][:8]
+        else:
+            screen_map = {"gainers": "day_gainers", "losers": "day_losers", "stocks": "most_actives"}
+            r = yf.screen(screen_map.get(category, "most_actives"), count=8)
+            quotes = r.get("quotes") or []
+            result = [q.get("symbol") for q in quotes if q.get("symbol")][:8]
+            # yf.screen already has name/currency — seed meta cache so quote calls skip ticker.info
+            for q in quotes:
+                sym = q.get("symbol")
+                if sym:
+                    _seed_meta(
+                        sym,
+                        name=q.get("longname") or q.get("shortname") or sym,
+                        currency=q.get("currency", "USD"),
+                        exchange=q.get("exchange", ""),
+                    )
     except Exception:
         result = ["AAPL", "MSFT", "GOOGL", "NVDA", "TSLA", "META", "AMZN", "AMD"]
 

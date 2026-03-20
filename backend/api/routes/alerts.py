@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from enum import Enum
@@ -5,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from db.database import get_db
 from db import crud
 from api.dependencies.auth import get_current_user
+from services.email import send_alert_triggered
 
 router = APIRouter(prefix="/api/alerts", tags=["alerts"])
 
@@ -75,7 +77,22 @@ async def trigger_alert(
     user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    alerts = await crud.get_alerts(db, user["user_id"])
+    alert = next((a for a in alerts if a.id == alert_id), None)
+    if not alert:
+        raise HTTPException(status_code=404, detail="Alert not found")
+
     ok = await crud.mark_alert_triggered(db, alert_id, user["user_id"])
     if not ok:
         raise HTTPException(status_code=404, detail="Alert not found")
+
+    # Send email notification in background — don't block the response
+    email = user.get("email")
+    if email:
+        asyncio.get_event_loop().run_in_executor(
+            None,
+            send_alert_triggered,
+            email, alert.symbol, alert.direction, alert.target_price, alert.target_price,
+        )
+
     return {"triggered": True}

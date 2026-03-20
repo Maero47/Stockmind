@@ -10,24 +10,24 @@ import {
   CrosshairMode,
   LineStyle,
   type IChartApi,
-  type ISeriesApi,
 } from "lightweight-charts";
-import { Maximize2, X, TrendingUp, BarChart2, Minus as MinusIcon, Trash2 } from "lucide-react";
+import { Maximize2, X, TrendingUp, BarChart2, Minus as MinusIcon, Trash2, Download, CandlestickChart as CandleIcon } from "lucide-react";
 import type { OHLCVBar, TimePeriod, TimeInterval } from "@/lib/types";
 import { useHistory } from "@/hooks/useStockData";
 
 // ── Period config ─────────────────────────────────────────────────────────────
 
-const PERIODS: { label: string; period: TimePeriod; interval: TimeInterval }[] = [
-  { label: "1D",  period: "1d",  interval: "5m"  },
-  { label: "1W",  period: "5d",  interval: "60m" },
-  { label: "1M",  period: "1mo", interval: "1d"  },
-  { label: "3M",  period: "3mo", interval: "1d"  },
-  { label: "1Y",  period: "1y",  interval: "1d"  },
+const PERIODS: { label: string; period: TimePeriod; interval: TimeInterval; fetch: TimePeriod }[] = [
+  { label: "1D",  period: "1d",  interval: "5m",  fetch: "5d"  },
+  { label: "1W",  period: "5d",  interval: "60m", fetch: "1mo" },
+  { label: "1M",  period: "1mo", interval: "1d",  fetch: "3mo" },
+  { label: "3M",  period: "3mo", interval: "1d",  fetch: "6mo" },
+  { label: "1Y",  period: "1y",  interval: "1d",  fetch: "2y"  },
 ];
 
 const OVERLAYS = ["EMA9", "EMA21", "BB"] as const;
 type Overlay = (typeof OVERLAYS)[number];
+type ChartType = "candlestick" | "line";
 
 // ── Indicator math ────────────────────────────────────────────────────────────
 
@@ -46,13 +46,15 @@ function calcBB(values: number[], period = 20) {
   return values.map((_, i) => {
     if (i < period - 1) return { upper: null, lower: null, middle: null };
     const slice = values.slice(i - period + 1, i + 1);
+    if (slice.some((v) => Number.isNaN(v))) return { upper: null, lower: null, middle: null };
     const mean  = slice.reduce((a, b) => a + b, 0) / period;
     const std   = Math.sqrt(slice.reduce((a, b) => a + (b - mean) ** 2, 0) / period);
     return { upper: mean + 2 * std, lower: mean - 2 * std, middle: mean };
   });
 }
 
-function toUnix(ts: string): number {
+function toChartTime(ts: string, isDaily: boolean): any {
+  if (isDaily) return ts.slice(0, 10);
   return Math.floor(new Date(ts).getTime() / 1000);
 }
 
@@ -85,23 +87,32 @@ function useChart(
   height:       number,
   bars:         OHLCVBar[],
   overlays:     Set<Overlay>,
-) {
-  const chart  = useRef<IChartApi | null>(null);
-  const candle = useRef<ISeriesApi<typeof CandlestickSeries> | null>(null);
-  const vol    = useRef<ISeriesApi<typeof HistogramSeries>   | null>(null);
-  const ema9s  = useRef<ISeriesApi<typeof LineSeries>        | null>(null);
-  const ema21s = useRef<ISeriesApi<typeof LineSeries>        | null>(null);
-  const bbUp   = useRef<ISeriesApi<typeof LineSeries>        | null>(null);
-  const bbLo   = useRef<ISeriesApi<typeof LineSeries>        | null>(null);
-  const bbMid  = useRef<ISeriesApi<typeof LineSeries>        | null>(null);
+  chartType:    ChartType,
+  interval:     TimeInterval,
+  period:       TimePeriod,
+): React.RefObject<IChartApi | null> {
+  const chart = useRef<IChartApi | null>(null);
 
-  // Create chart — called once when container is ready
-  const initChart = useCallback(() => {
+  useEffect(() => {
     const el = containerRef.current;
-    if (!el || chart.current) return;
+    if (!el || !bars.length) return;
+
+    const validBars = bars.filter(
+      (b) => b.open  != null && !Number.isNaN(b.open)  &&
+             b.high  != null && !Number.isNaN(b.high)  &&
+             b.low   != null && !Number.isNaN(b.low)   &&
+             b.close != null && !Number.isNaN(b.close)
+    );
+    if (!validBars.length) return;
+
+    const isDaily = interval === "1d" || interval === "1wk" || interval === "1mo";
+    const t = (ts: string) => toChartTime(ts, isDaily);
+
+    // Fresh chart every render — eliminates stale series state
+    if (chart.current) { chart.current.remove(); chart.current = null; }
 
     const c = createChart(el, {
-      autoSize: true,   // fills container width automatically — handles 0-width on mount
+      autoSize: true,
       height,
       layout: {
         background: { type: ColorType.Solid, color: T.bg },
@@ -116,96 +127,98 @@ function useChart(
       rightPriceScale: { borderColor: T.border, scaleMargins: { top: 0.08, bottom: 0.22 } },
       timeScale: {
         borderColor: T.border, timeVisible: true, secondsVisible: false,
-        fixLeftEdge: true,   // no blank space past first bar
-        fixRightEdge: true,  // no blank space past last bar
-        lockVisibleTimeRangeOnResize: true,
+        fixLeftEdge: true, fixRightEdge: true,
       },
     });
-
     chart.current = c;
-    candle.current = c.addSeries(CandlestickSeries, {
-      upColor: T.green, downColor: T.red,
-      borderUpColor: T.green, borderDownColor: T.red,
-      wickUpColor: T.green, wickDownColor: T.red,
-    });
-    vol.current = c.addSeries(HistogramSeries, {
+
+    // Volume
+    const volS = c.addSeries(HistogramSeries, {
       color: "rgba(255,255,255,0.08)", priceFormat: { type: "volume" }, priceScaleId: "vol",
     });
     c.priceScale("vol").applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
-  }, [containerRef, height]);
-
-  // Destroy chart on unmount
-  useEffect(() => {
-    return () => {
-      chart.current?.remove();
-      chart.current = candle.current = vol.current = null;
-      ema9s.current = ema21s.current = null;
-      bbUp.current = bbLo.current = bbMid.current = null;
-    };
-  }, []);
-
-  // Init on mount (or whenever container becomes available)
-  useEffect(() => {
-    if (!chart.current) initChart();
-  });
-
-  // Update bars — also triggers init if chart wasn't ready yet
-  useEffect(() => {
-    if (!bars.length) return;
-    if (!chart.current) initChart();
-    if (!chart.current || !candle.current || !vol.current) return;
-
-    const validBars = bars.filter(
-      (b) => b.open != null && b.high != null && b.low != null && b.close != null
-    );
-
-    candle.current.setData(
-      validBars.map((b) => ({ time: toUnix(b.timestamp) as any, open: b.open, high: b.high, low: b.low, close: b.close }))
-    );
-    vol.current.setData(
+    volS.setData(
       validBars.map((b) => ({
-        time: toUnix(b.timestamp) as any,
-        value: b.volume ?? 0,
+        time: t(b.timestamp), value: b.volume ?? 0,
         color: b.close >= b.open ? "rgba(0,230,118,0.3)" : "rgba(255,61,87,0.3)",
       }))
     );
-    chart.current.timeScale().fitContent();
-  }, [bars, initChart]);
 
-  // Overlays
-  useEffect(() => {
-    const c = chart.current;
-    if (!c || !bars.length) return;
-    const closes = bars.map((b) => b.close);
-    const times  = bars.map((b) => toUnix(b.timestamp));
-    const lineData = (vals: (number | null)[]) =>
-      vals.map((v, i) => ({ time: times[i] as any, value: v })).filter((d) => d.value !== null) as { time: any; value: number }[];
+    // Main price series
+    if (chartType === "candlestick") {
+      const s = c.addSeries(CandlestickSeries, {
+        upColor: T.green, downColor: T.red,
+        borderUpColor: T.green, borderDownColor: T.red,
+        wickUpColor: T.green, wickDownColor: T.red,
+      });
+      s.setData(validBars.map((b) => ({
+        time: t(b.timestamp), open: b.open, high: b.high, low: b.low, close: b.close,
+      })));
+    } else {
+      const s = c.addSeries(LineSeries, {
+        color: T.green, lineWidth: 2, priceLineVisible: false, lastValueVisible: true,
+      });
+      s.setData(validBars.map((b) => ({ time: t(b.timestamp), value: b.close })));
+    }
+
+    // Overlays
+    const closes = validBars.map((b) => b.close);
+    const times  = validBars.map((b) => t(b.timestamp));
+    const ovData = (vals: (number | null)[]) =>
+      vals.reduce<{ time: any; value: number }[]>((acc, v, i) => {
+        if (v != null && !Number.isNaN(v)) acc.push({ time: times[i], value: v });
+        return acc;
+      }, []);
 
     if (overlays.has("EMA9")) {
-      if (!ema9s.current) ema9s.current = c.addSeries(LineSeries, { color: T.ema9, lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
-      ema9s.current.setData(lineData(calcEMA(closes, 9)));
-    } else if (ema9s.current) { c.removeSeries(ema9s.current); ema9s.current = null; }
-
-    if (overlays.has("EMA21")) {
-      if (!ema21s.current) ema21s.current = c.addSeries(LineSeries, { color: T.ema21, lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
-      ema21s.current.setData(lineData(calcEMA(closes, 21)));
-    } else if (ema21s.current) { c.removeSeries(ema21s.current); ema21s.current = null; }
-
-    const bb = calcBB(closes, 20);
-    if (overlays.has("BB")) {
-      if (!bbUp.current) {
-        bbUp.current  = c.addSeries(LineSeries, { color: T.bb, lineWidth: 1, lineStyle: LineStyle.Dashed, priceLineVisible: false, lastValueVisible: false });
-        bbLo.current  = c.addSeries(LineSeries, { color: T.bb, lineWidth: 1, lineStyle: LineStyle.Dashed, priceLineVisible: false, lastValueVisible: false });
-        bbMid.current = c.addSeries(LineSeries, { color: "rgba(156,39,176,0.4)", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+      const d = ovData(calcEMA(closes, 9));
+      if (d.length) {
+        c.addSeries(LineSeries, { color: T.ema9, lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData(d);
       }
-      bbUp.current.setData(lineData(bb.map((b) => b.upper)));
-      bbLo.current!.setData(lineData(bb.map((b) => b.lower)));
-      bbMid.current!.setData(lineData(bb.map((b) => b.middle)));
-    } else if (bbUp.current) {
-      c.removeSeries(bbUp.current); c.removeSeries(bbLo.current!); c.removeSeries(bbMid.current!);
-      bbUp.current = bbLo.current = bbMid.current = null;
     }
-  }, [overlays, bars]);
+    if (overlays.has("EMA21")) {
+      const d = ovData(calcEMA(closes, 21));
+      if (d.length) {
+        c.addSeries(LineSeries, { color: T.ema21, lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData(d);
+      }
+    }
+    if (overlays.has("BB")) {
+      const bb = calcBB(closes, 20);
+      const up = ovData(bb.map((b) => b.upper));
+      const lo = ovData(bb.map((b) => b.lower));
+      const md = ovData(bb.map((b) => b.middle));
+      if (up.length) {
+        c.addSeries(LineSeries, { color: T.bb, lineWidth: 1, lineStyle: LineStyle.Dashed, priceLineVisible: false, lastValueVisible: false }).setData(up);
+        c.addSeries(LineSeries, { color: T.bb, lineWidth: 1, lineStyle: LineStyle.Dashed, priceLineVisible: false, lastValueVisible: false }).setData(lo);
+        c.addSeries(LineSeries, { color: "rgba(156,39,176,0.4)", lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData(md);
+      }
+    }
+
+    // Zoom to display period (fetch may include extra lookback bars for indicator warm-up)
+    const cutoff = new Date();
+    switch (period) {
+      case "1d":  cutoff.setDate(cutoff.getDate() - 1); break;
+      case "5d":  cutoff.setDate(cutoff.getDate() - 7); break;
+      case "1mo": cutoff.setMonth(cutoff.getMonth() - 1); cutoff.setDate(cutoff.getDate() - 5); break;
+      case "3mo": cutoff.setMonth(cutoff.getMonth() - 3); cutoff.setDate(cutoff.getDate() - 5); break;
+      case "1y":  cutoff.setFullYear(cutoff.getFullYear() - 1); cutoff.setDate(cutoff.getDate() - 5); break;
+      default:    cutoff.setFullYear(cutoff.getFullYear() - 2); break;
+    }
+    const cutoffMs = cutoff.getTime();
+    const firstIdx = validBars.findIndex((b) => new Date(b.timestamp).getTime() >= cutoffMs);
+    if (firstIdx > 0) {
+      c.timeScale().setVisibleRange({
+        from: t(validBars[firstIdx].timestamp),
+        to: t(validBars[validBars.length - 1].timestamp),
+      });
+    } else {
+      c.timeScale().fitContent();
+    }
+
+    return () => { c.remove(); chart.current = null; };
+  }, [bars, chartType, overlays, interval, period, height, containerRef]);
+
+  return chart;
 }
 
 // ── Controls bar ──────────────────────────────────────────────────────────────
@@ -213,28 +226,61 @@ function useChart(
 const OV_COLORS: Record<Overlay, string> = { EMA9: "#2979FF", EMA21: "#FFB300", BB: "#9C27B0" };
 
 function Controls({
-  periodIdx, setPeriodIdx, overlays, toggleOverlay, onExpand, onClose,
+  periodIdx, setPeriodIdx, overlays, toggleOverlay,
+  chartType, setChartType,
+  onExport, onExpand, onClose,
+  showCustom, customStart, customEnd, onCustomStart, onCustomEnd,
 }: {
   periodIdx: number; setPeriodIdx: (i: number) => void;
   overlays: Set<Overlay>; toggleOverlay: (o: Overlay) => void;
+  chartType: ChartType; setChartType: (t: ChartType) => void;
+  onExport?: () => void;
   onExpand?: () => void; onClose?: () => void;
+  showCustom?: boolean;
+  customStart?: string; customEnd?: string;
+  onCustomStart?: (v: string) => void; onCustomEnd?: (v: string) => void;
 }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-      <div className="flex gap-1">
+      <div className="flex flex-wrap items-center gap-1">
         {PERIODS.map(({ label }, i) => (
           <button key={label} onClick={() => setPeriodIdx(i)}
             className="px-2.5 py-1 rounded text-xs font-mono font-medium transition-all"
             style={{
-              backgroundColor: i === periodIdx ? "var(--accent-green)" : "transparent",
-              color:  i === periodIdx ? "#080C14" : "var(--text-secondary)",
-              border: i === periodIdx ? "none" : "1px solid var(--border)",
+              backgroundColor: i === periodIdx && !showCustom ? "var(--accent-green)" : "transparent",
+              color:  i === periodIdx && !showCustom ? "#080C14" : "var(--text-secondary)",
+              border: i === periodIdx && !showCustom ? "none" : "1px solid var(--border)",
             }}>
             {label}
           </button>
         ))}
+        {showCustom && (
+          <>
+            <input type="date" value={customStart ?? ""} onChange={(e) => onCustomStart?.(e.target.value)}
+              className="text-xs font-mono rounded px-2 py-1 outline-none"
+              style={{ backgroundColor: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text-primary)" }} />
+            <span className="text-xs" style={{ color: "var(--text-muted)" }}>→</span>
+            <input type="date" value={customEnd ?? ""} onChange={(e) => onCustomEnd?.(e.target.value)}
+              className="text-xs font-mono rounded px-2 py-1 outline-none"
+              style={{ backgroundColor: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text-primary)" }} />
+          </>
+        )}
       </div>
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {/* Chart type toggle */}
+        <div className="flex rounded overflow-hidden" style={{ border: "1px solid var(--border)" }}>
+          <button onClick={() => setChartType("candlestick")} title="Candlestick"
+            className="p-1.5 flex items-center transition-colors"
+            style={{ backgroundColor: chartType === "candlestick" ? "rgba(0,230,118,0.15)" : "transparent", color: chartType === "candlestick" ? "var(--accent-green)" : "var(--text-muted)" }}>
+            <CandleIcon size={12} />
+          </button>
+          <button onClick={() => setChartType("line")} title="Line"
+            className="p-1.5 flex items-center transition-colors"
+            style={{ borderLeft: "1px solid var(--border)", backgroundColor: chartType === "line" ? "rgba(0,230,118,0.15)" : "transparent", color: chartType === "line" ? "var(--accent-green)" : "var(--text-muted)" }}>
+            <TrendingUp size={12} />
+          </button>
+        </div>
+        {/* Overlays */}
         {OVERLAYS.map((o) => {
           const active = overlays.has(o);
           return (
@@ -249,16 +295,23 @@ function Controls({
             </button>
           );
         })}
+        {onExport && (
+          <button onClick={onExport} title="Export PNG"
+            className="p-1.5 rounded-lg transition-colors"
+            style={{ border: "1px solid var(--border)", color: "var(--text-muted)" }}>
+            <Download size={12} />
+          </button>
+        )}
         {onExpand && (
           <button onClick={onExpand} title="Expand"
-            className="p-1.5 rounded-lg ml-1 transition-colors"
+            className="p-1.5 rounded-lg transition-colors"
             style={{ border: "1px solid var(--border)", color: "var(--text-muted)" }}>
             <Maximize2 size={12} />
           </button>
         )}
         {onClose && (
           <button onClick={onClose} title="Close"
-            className="p-1.5 rounded-lg ml-1 transition-colors"
+            className="p-1.5 rounded-lg transition-colors"
             style={{ border: "1px solid var(--border)", color: "var(--text-muted)" }}>
             <X size={12} />
           </button>
@@ -386,21 +439,38 @@ function DrawToolbar({ tool, setTool, onClear }: { tool: DrawTool; setTool: (t: 
 function FullscreenChart({ symbol, onClose }: { symbol: string; onClose: () => void }) {
   const [periodIdx,  setPeriodIdx]  = useState(2);
   const [overlays,   setOverlays]   = useState<Set<Overlay>>(new Set());
+  const [chartType,  setChartType]  = useState<ChartType>("candlestick");
   const [drawTool,   setDrawTool]   = useState<DrawTool>("cursor");
   const [drawings,   setDrawings]   = useState<Drawing[]>([]);
   const [canvasSize, setCanvasSize] = useState({ w: 0, h: 0 });
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd,   setCustomEnd]   = useState("");
+  const [showCustom,  setShowCustom]  = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const wrapRef      = useRef<HTMLDivElement>(null);
 
-  const { period, interval } = PERIODS[periodIdx];
-  const { data, isLoading }  = useHistory(symbol, period, interval);
+  const { period, interval, fetch: fetchPeriod } = PERIODS[periodIdx];
+  const useStart = showCustom && customStart ? customStart : undefined;
+  const useEnd   = showCustom && customEnd   ? customEnd   : undefined;
+  const usePeriod = useStart ? period : fetchPeriod;
+  const { data, isLoading } = useHistory(symbol, usePeriod, interval, useStart, useEnd);
   const bars = data?.bars ?? [];
 
   const toggleOverlay = useCallback((o: Overlay) =>
     setOverlays((p) => { const s = new Set(p); s.has(o) ? s.delete(o) : s.add(o); return s; }), []);
 
   const chartH = typeof window !== "undefined" ? Math.floor(window.innerHeight * 0.72) : 600;
-  useChart(containerRef, chartH, bars, overlays);
+  const chartRef = useChart(containerRef, chartH, bars, overlays, chartType, interval, period);
+
+  const handleExport = useCallback(() => {
+    const canvas = chartRef.current?.takeScreenshot();
+    if (!canvas) return;
+    const a = document.createElement("a");
+    a.href = canvas.toDataURL("image/png");
+    const label = showCustom && customStart ? `${customStart}_${customEnd}` : PERIODS[periodIdx].label;
+    a.download = `${symbol}-${label}.png`;
+    a.click();
+  }, [chartRef, symbol, periodIdx, showCustom, customStart, customEnd]);
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -417,6 +487,8 @@ function FullscreenChart({ symbol, onClose }: { symbol: string; onClose: () => v
     return () => window.removeEventListener("keydown", h);
   }, [onClose]);
 
+  const handlePeriodIdx = (i: number) => { setPeriodIdx(i); setShowCustom(false); };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ backgroundColor: "rgba(0,0,0,0.88)", backdropFilter: "blur(6px)" }}
@@ -430,10 +502,23 @@ function FullscreenChart({ symbol, onClose }: { symbol: string; onClose: () => v
             <TrendingUp size={14} style={{ color: "#00E676" }} />
             <span className="font-semibold text-sm" style={{ color: "#F0F6FC" }}>{symbol}</span>
             <span className="text-xs font-mono" style={{ color: "#8B949E" }}>
-              {PERIODS[periodIdx].label} · {PERIODS[periodIdx].interval}
+              {showCustom && customStart && customEnd
+                ? `${customStart} → ${customEnd}`
+                : `${PERIODS[periodIdx].label} · ${PERIODS[periodIdx].interval}`}
             </span>
           </div>
           <div className="flex items-center gap-3">
+            {/* Custom date range toggle */}
+            <button
+              onClick={() => setShowCustom((p) => !p)}
+              className="text-xs px-2 py-1 rounded transition-colors"
+              style={{
+                border: `1px solid ${showCustom ? "var(--accent-green)" : "rgba(255,255,255,0.1)"}`,
+                color: showCustom ? "#00E676" : "#8B949E",
+                backgroundColor: showCustom ? "rgba(0,230,118,0.08)" : "transparent",
+              }}>
+              Custom range
+            </button>
             <span className="text-xs hidden sm:block" style={{ color: "#8B949E" }}>Scroll to zoom · Drag to pan · Esc to close</span>
             <button onClick={onClose} className="p-1.5 rounded-lg" style={{ border: "1px solid rgba(255,255,255,0.1)", color: "#8B949E" }}>
               <X size={14} />
@@ -442,7 +527,15 @@ function FullscreenChart({ symbol, onClose }: { symbol: string; onClose: () => v
         </div>
 
         <div className="px-5 pt-3 pb-0 shrink-0 flex items-center justify-between gap-3 flex-wrap">
-          <Controls periodIdx={periodIdx} setPeriodIdx={setPeriodIdx} overlays={overlays} toggleOverlay={toggleOverlay} onClose={onClose} />
+          <Controls
+            periodIdx={periodIdx} setPeriodIdx={handlePeriodIdx}
+            overlays={overlays} toggleOverlay={toggleOverlay}
+            chartType={chartType} setChartType={setChartType}
+            onExport={handleExport} onClose={onClose}
+            showCustom={showCustom}
+            customStart={customStart} customEnd={customEnd}
+            onCustomStart={setCustomStart} onCustomEnd={setCustomEnd}
+          />
           <DrawToolbar tool={drawTool} setTool={setDrawTool} onClear={() => setDrawings([])} />
         </div>
 
@@ -485,30 +578,42 @@ function FullscreenChart({ symbol, onClose }: { symbol: string; onClose: () => v
 export default function CandlestickChart({ symbol }: { symbol: string }) {
   const [periodIdx, setPeriodIdx] = useState(2);
   const [overlays,  setOverlays]  = useState<Set<Overlay>>(new Set());
+  const [chartType, setChartType] = useState<ChartType>("candlestick");
   const [expanded,  setExpanded]  = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const { period, interval } = PERIODS[periodIdx];
-  const { data, isLoading }  = useHistory(symbol, period, interval);
+  const { period, interval, fetch: fetchPeriod } = PERIODS[periodIdx];
+  const { data, isLoading }  = useHistory(symbol, fetchPeriod, interval);
   const bars = data?.bars ?? [];
 
   const toggleOverlay = useCallback((o: Overlay) =>
     setOverlays((p) => { const s = new Set(p); s.has(o) ? s.delete(o) : s.add(o); return s; }), []);
 
-  useChart(containerRef, 320, bars, overlays);
+  const chartRef = useChart(containerRef, 320, bars, overlays, chartType, interval, period);
+
+  const handleExport = useCallback(() => {
+    const canvas = chartRef.current?.takeScreenshot();
+    if (!canvas) return;
+    const a = document.createElement("a");
+    a.href = canvas.toDataURL("image/png");
+    a.download = `${symbol}-${PERIODS[periodIdx].label}.png`;
+    a.click();
+  }, [chartRef, symbol, periodIdx]);
 
   return (
     <>
       <div className="rounded-xl p-4" style={{ backgroundColor: "var(--bg-surface)", border: "1px solid var(--border)" }}>
-        <Controls periodIdx={periodIdx} setPeriodIdx={setPeriodIdx}
-          overlays={overlays} toggleOverlay={toggleOverlay} onExpand={() => setExpanded(true)} />
+        <Controls
+          periodIdx={periodIdx} setPeriodIdx={setPeriodIdx}
+          overlays={overlays} toggleOverlay={toggleOverlay}
+          chartType={chartType} setChartType={setChartType}
+          onExport={handleExport} onExpand={() => setExpanded(true)}
+        />
 
         <div className="relative rounded-lg overflow-hidden" style={{ height: 320 }}>
-          {/* Chart always mounted so lightweight-charts can initialize */}
           <div ref={containerRef} className="w-full h-full"
             onClick={() => setExpanded(true)} style={{ cursor: "pointer" }} title="Click to expand" />
 
-          {/* Translucent loading overlay — chart visible underneath */}
           {isLoading && !bars.length && (
             <div className="absolute inset-0 flex items-center justify-center rounded-lg"
               style={{ backgroundColor: "rgba(13,17,23,0.75)" }}>

@@ -52,6 +52,10 @@ export async function getTrending(category: TrendingCategory = "stocks"): Promis
   return apiFetch(`/api/stocks/trending?category=${category}`);
 }
 
+export async function getCryptoMovers(): Promise<{ gainers: StockQuote[]; losers: StockQuote[] }> {
+  return apiFetch("/api/crypto/movers");
+}
+
 export async function getQuote(symbol: string): Promise<StockQuote> {
   return apiFetch<StockQuote>(`/api/stocks/${encodeURIComponent(symbol)}`);
 }
@@ -63,9 +67,13 @@ export async function getRealtimeQuote(symbol: string): Promise<StockQuote> {
 export async function getHistory(
   symbol: string,
   period: TimePeriod = "1mo",
-  interval: TimeInterval = "1d"
+  interval: TimeInterval = "1d",
+  start?: string,
+  end?: string,
 ): Promise<StockHistory> {
   const params = new URLSearchParams({ period, interval });
+  if (start) params.set("start", start);
+  if (end)   params.set("end",   end);
   return apiFetch<StockHistory>(
     `/api/stocks/${encodeURIComponent(symbol)}/history?${params}`
   );

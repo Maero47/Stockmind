@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { X, Eye, EyeOff, ExternalLink, ShieldCheck, Cloud, Loader2 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { PROVIDERS } from "@/lib/types";
@@ -48,10 +49,10 @@ export default function ApiKeyModal({ provider, onClose }: Props) {
     setTimeout(onClose, 600);
   };
 
-  return (
+  const modal = (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ backgroundColor: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}
+      className="fixed inset-0 flex items-center justify-center p-4"
+      style={{ zIndex: 9999, backgroundColor: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
@@ -172,4 +173,6 @@ export default function ApiKeyModal({ provider, onClose }: Props) {
       </div>
     </div>
   );
+
+  return createPortal(modal, document.body);
 }

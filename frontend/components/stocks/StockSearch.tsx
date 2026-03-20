@@ -2,23 +2,43 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Search, ArrowRight } from "lucide-react";
+import { Search, ArrowRight, Clock, X } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useSearch } from "@/hooks/useStockData";
 
-// Static fallback shown before the user types anything
 const POPULAR = [
-  { symbol: "AAPL",  name: "Apple Inc." },
-  { symbol: "MSFT",  name: "Microsoft Corp." },
-  { symbol: "GOOGL", name: "Alphabet Inc." },
-  { symbol: "NVDA",  name: "NVIDIA Corp." },
-  { symbol: "TSLA",  name: "Tesla Inc." },
-  { symbol: "META",  name: "Meta Platforms" },
-  { symbol: "AMZN",  name: "Amazon.com Inc." },
-  { symbol: "SPY",   name: "S&P 500 ETF" },
+  { symbol: "AAPL",    name: "Apple Inc." },
+  { symbol: "MSFT",    name: "Microsoft Corp." },
+  { symbol: "GOOGL",   name: "Alphabet Inc." },
+  { symbol: "NVDA",    name: "NVIDIA Corp." },
+  { symbol: "TSLA",    name: "Tesla Inc." },
+  { symbol: "META",    name: "Meta Platforms" },
+  { symbol: "AMZN",    name: "Amazon.com Inc." },
+  { symbol: "SPY",     name: "S&P 500 ETF" },
   { symbol: "BTC-USD", name: "Bitcoin USD" },
   { symbol: "ETH-USD", name: "Ethereum USD" },
 ];
+
+const RECENT_KEY = "sm_recent_searches";
+const MAX_RECENT = 10;
+
+function getRecent(): { symbol: string; name: string }[] {
+  try {
+    return JSON.parse(localStorage.getItem(RECENT_KEY) ?? "[]");
+  } catch {
+    return [];
+  }
+}
+
+function saveRecent(symbol: string, name: string) {
+  const prev = getRecent().filter((r) => r.symbol !== symbol);
+  localStorage.setItem(RECENT_KEY, JSON.stringify([{ symbol, name }, ...prev].slice(0, MAX_RECENT)));
+}
+
+function removeRecent(symbol: string) {
+  const prev = getRecent().filter((r) => r.symbol !== symbol);
+  localStorage.setItem(RECENT_KEY, JSON.stringify(prev));
+}
 
 interface Props {
   size?: "hero" | "compact";
@@ -34,23 +54,33 @@ export default function StockSearch({
   const [query,   setQuery]   = useState("");
   const [open,    setOpen]    = useState(false);
   const [focused, setFocused] = useState(false);
+  const [recent,  setRecent]  = useState<{ symbol: string; name: string }[]>([]);
   const inputRef     = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Live search — only fires when query >= 1 char
   const { data: liveResults, isLoading: searching } = useSearch(query);
 
-  // What to show in the dropdown
-  const suggestions =
-    query.length === 0
-      ? POPULAR
-      : liveResults && liveResults.length > 0
-      ? liveResults.map((r) => ({ symbol: r.symbol, name: r.name }))
-      : POPULAR.filter(
-          (s) =>
-            s.symbol.toLowerCase().includes(query.toLowerCase()) ||
-            s.name.toLowerCase().includes(query.toLowerCase())
-        );
+  // Load recent on mount
+  useEffect(() => { setRecent(getRecent()); }, []);
+
+  // Cmd+K / "/" to focus search
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if ((e.key === "k" && (e.metaKey || e.ctrlKey)) || e.key === "/") {
+        e.preventDefault();
+        inputRef.current?.focus();
+        setOpen(true);
+      }
+      if (e.key === "Escape") {
+        setOpen(false);
+        inputRef.current?.blur();
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
 
   // Close on outside click
   useEffect(() => {
@@ -63,15 +93,25 @@ export default function StockSearch({
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const navigate = (symbol: string) => {
+  const suggestions =
+    query.length === 0
+      ? POPULAR
+      : liveResults && liveResults.length > 0
+      ? liveResults.map((r) => ({ symbol: r.symbol, name: r.name }))
+      : POPULAR.filter(
+          (s) =>
+            s.symbol.toLowerCase().includes(query.toLowerCase()) ||
+            s.name.toLowerCase().includes(query.toLowerCase())
+        );
+
+  const navigate = (symbol: string, name = "") => {
     const upper = symbol.toUpperCase();
+    saveRecent(upper, name || upper);
+    setRecent(getRecent());
     setQuery("");
     setOpen(false);
     setSelectedSymbol(upper);
-    if (size === "hero") {
-      router.push(`/dashboard`);
-    }
-    // In compact (dashboard) mode just update the symbol in the store
+    if (size === "hero") router.push("/dashboard");
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -80,7 +120,14 @@ export default function StockSearch({
     if (trimmed) navigate(trimmed);
   };
 
-  const isHero = size === "hero";
+  const handleRemoveRecent = (e: React.MouseEvent, symbol: string) => {
+    e.stopPropagation();
+    removeRecent(symbol);
+    setRecent(getRecent());
+  };
+
+  const isHero    = size === "hero";
+  const showRecent = query.length === 0 && recent.length > 0;
 
   return (
     <div ref={containerRef} className="relative w-full">
@@ -89,9 +136,7 @@ export default function StockSearch({
           className="flex items-center rounded-xl transition-all duration-200"
           style={{
             backgroundColor: "var(--bg-surface)",
-            border: focused
-              ? "1px solid var(--accent-green)"
-              : "1px solid var(--border-bright)",
+            border: focused ? "1px solid var(--accent-green)" : "1px solid var(--border-bright)",
             boxShadow: focused
               ? "0 0 0 3px rgba(0,230,118,0.08), 0 4px 24px rgba(0,0,0,0.4)"
               : "0 4px 24px rgba(0,0,0,0.3)",
@@ -114,11 +159,16 @@ export default function StockSearch({
               isHero ? "px-4 py-4 text-base" : "px-3 py-3 text-sm"
             }`}
           />
+          {/* Cmd+K hint — only in hero, only when not focused */}
+          {isHero && !focused && (
+            <span className="mr-3 hidden sm:flex items-center gap-1 text-xs font-mono"
+              style={{ color: "var(--text-muted)" }}>
+              <kbd className="px-1.5 py-0.5 rounded" style={{ backgroundColor: "var(--bg-subtle)" }}>⌘K</kbd>
+            </span>
+          )}
           {searching && (
-            <span
-              className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin mr-3 shrink-0"
-              style={{ borderColor: "var(--accent-green)" }}
-            />
+            <span className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin mr-3 shrink-0"
+              style={{ borderColor: "var(--accent-green)" }} />
           )}
           <button
             type="submit"
@@ -127,13 +177,12 @@ export default function StockSearch({
             }`}
             style={{ backgroundColor: "var(--accent-green)", color: "#080C14" }}
           >
-            {isHero ? <><span>Analyze</span> <ArrowRight size={14} /></> : <ArrowRight size={14} />}
+            {isHero ? <><span>Analyze</span><ArrowRight size={14} /></> : <ArrowRight size={14} />}
           </button>
         </div>
       </form>
 
-      {/* Dropdown */}
-      {open && suggestions.length > 0 && (
+      {open && (
         <div
           className="absolute top-full left-0 right-0 mt-1.5 rounded-xl overflow-hidden z-50"
           style={{
@@ -142,30 +191,70 @@ export default function StockSearch({
             boxShadow: "0 16px 40px rgba(0,0,0,0.5)",
           }}
         >
-          {query.length === 0 && (
-            <p
-              className="px-4 pt-2.5 pb-1 text-xs font-medium tracking-wider uppercase"
-              style={{ color: "var(--text-muted)" }}
-            >
-              Popular
-            </p>
+          {/* Recent searches */}
+          {showRecent && (
+            <>
+              <p className="px-4 pt-2.5 pb-1 text-xs font-medium tracking-wider uppercase"
+                style={{ color: "var(--text-muted)" }}>
+                Recent
+              </p>
+              {recent.slice(0, 5).map((r) => (
+                <button key={r.symbol} type="button" onMouseDown={() => navigate(r.symbol, r.name)}
+                  className="w-full flex items-center justify-between px-4 py-2.5 text-left transition-colors"
+                  style={{ backgroundColor: "transparent" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--bg-subtle)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+                >
+                  <div className="flex items-center gap-3">
+                    <Clock size={13} style={{ color: "var(--text-muted)" }} />
+                    <span className="font-mono text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+                      {r.symbol}
+                    </span>
+                    <span className="text-sm truncate" style={{ color: "var(--text-secondary)" }}>
+                      {r.name}
+                    </span>
+                  </div>
+                  <span onMouseDown={(e) => handleRemoveRecent(e, r.symbol)}
+                    className="p-1 rounded transition-colors"
+                    style={{ color: "var(--text-muted)" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = "var(--accent-red)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}
+                  >
+                    <X size={12} />
+                  </span>
+                </button>
+              ))}
+              <div className="mx-4 my-1" style={{ height: "1px", backgroundColor: "var(--border)" }} />
+            </>
           )}
-          {suggestions.slice(0, 8).map((s) => (
-            <button
-              key={s.symbol}
-              type="button"
-              onMouseDown={() => navigate(s.symbol)}
-              className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-bg-subtle transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                <span className="font-mono text-sm font-medium text-text-primary w-16">
-                  {s.symbol}
-                </span>
-                <span className="text-sm text-text-secondary truncate">{s.name}</span>
-              </div>
-              <ArrowRight size={12} style={{ color: "var(--text-muted)" }} />
-            </button>
-          ))}
+
+          {/* Popular / live results */}
+          {suggestions.length > 0 && (
+            <>
+              <p className="px-4 pt-2 pb-1 text-xs font-medium tracking-wider uppercase"
+                style={{ color: "var(--text-muted)" }}>
+                {query.length === 0 ? "Popular" : "Results"}
+              </p>
+              {suggestions.slice(0, 8).map((s) => (
+                <button key={s.symbol} type="button" onMouseDown={() => navigate(s.symbol, s.name)}
+                  className="w-full flex items-center justify-between px-4 py-2.5 text-left transition-colors"
+                  style={{ backgroundColor: "transparent" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--bg-subtle)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono text-sm font-medium w-16" style={{ color: "var(--text-primary)" }}>
+                      {s.symbol}
+                    </span>
+                    <span className="text-sm truncate" style={{ color: "var(--text-secondary)" }}>
+                      {s.name}
+                    </span>
+                  </div>
+                  <ArrowRight size={12} style={{ color: "var(--text-muted)" }} />
+                </button>
+              ))}
+            </>
+          )}
         </div>
       )}
     </div>

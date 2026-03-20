@@ -165,21 +165,24 @@ async def get_stock_history(
     symbol: str = _SYM,
     period: str = Query("1mo", pattern="^(1d|5d|1mo|3mo|6mo|1y|2y)$"),
     interval: str = Query("1d", pattern="^(1m|5m|15m|30m|60m|1d|1wk|1mo)$"),
+    start: str | None = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    end:   str | None = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
 ):
     """
     OHLCV history.
     period  : 1d | 5d | 1mo | 3mo | 6mo | 1y | 2y
     interval: 1m | 5m | 15m | 30m | 60m | 1d | 1wk | 1mo
+    start/end: YYYY-MM-DD for custom date range (overrides period)
     """
     symbol = symbol.upper()
     try:
-        bars = stock_fetcher.get_history(symbol, period=period, interval=interval)
+        bars = stock_fetcher.get_history(symbol, period=period, interval=interval, start=start, end=end)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
 
     return HistoryResponse(
         symbol=symbol,
-        period=period,
+        period=f"{start}:{end}" if start and end else period,
         interval=interval,
         bars=[OHLCVBar(**b) for b in bars],
     )

@@ -27,11 +27,16 @@ export function useRealtimeQuote(symbol: string) {
 export function useHistory(
   symbol: string,
   period: TimePeriod = "1mo",
-  interval: TimeInterval = "1d"
+  interval: TimeInterval = "1d",
+  start?: string,
+  end?: string,
 ) {
+  const key = start && end
+    ? `hist:${symbol}:${start}:${end}:${interval}`
+    : `hist:${symbol}:${period}:${interval}`;
   return useSWR(
-    symbol ? `hist:${symbol}:${period}:${interval}` : null,
-    () => getHistory(symbol, period, interval),
+    symbol ? key : null,
+    () => getHistory(symbol, period, interval, start, end),
     { refreshInterval: 60_000 }
   );
 }

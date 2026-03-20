@@ -6,6 +6,7 @@ import Image from "next/image";
 import { motion, useInView } from "framer-motion";
 import type { Variants } from "framer-motion";
 import useSWR from "swr";
+import CryptoMovers from "@/components/crypto/CryptoMovers";
 import {
   Brain, BarChart2, Cpu, ArrowRight, Zap, ShieldCheck,
   TrendingUp, TrendingDown, Bitcoin, Layers, RefreshCw,
@@ -314,6 +315,9 @@ export default function HomePage() {
       {/* ── Trending grid ────────────────────────────────────────────────── */}
       <TrendingSection />
 
+      {/* ── Crypto movers ────────────────────────────────────────────────── */}
+      <CryptoMovers />
+
       {/* ── Features ─────────────────────────────────────────────────────── */}
       <section
         className="max-w-7xl mx-auto px-6 py-20"
@@ -440,7 +444,7 @@ export default function HomePage() {
         style={{ borderTop: "1px solid var(--border)" }}
       >
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
-          <Image src="/logo.png" alt="StockMind" width={120} height={34} style={{ objectFit: "contain", opacity: 0.6 }} />
+          <Image src="/logo.png" alt="StockMind" width={120} height={34} style={{ objectFit: "contain", height: "auto", opacity: 0.6 }} />
         </div>
       </footer>
     </div>

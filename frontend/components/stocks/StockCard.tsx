@@ -146,7 +146,7 @@ export default function StockCard({ symbol }: Props) {
       {/* Sparkline */}
       <div className="h-14 w-full mb-3 -mx-1">
         {sparkData.length > 1 ? (
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height={56} minWidth={0}>
             <AreaChart data={sparkData}>
               <defs>
                 <linearGradient id={`grad-${symbol}`} x1="0" y1="0" x2="0" y2="1">

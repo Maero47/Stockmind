@@ -9,13 +9,34 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from api.middleware.cors import add_cors
 from api.middleware.rate_limit import rate_limit_middleware
-from api.routes import stocks, crypto, news, ai, predictions, keys, watchlist, alerts
+from api.routes import stocks, crypto, news, ai, predictions, keys, watchlist, alerts, notify
 from db.database import init_db
+
+
+def _warm_cache():
+    import threading, time as _t
+    def _run():
+        _t.sleep(3)  # let the server finish booting
+        try:
+            from services.data import stock_fetcher
+            for cat in ("stocks", "crypto", "gainers", "losers", "etf"):
+                try:
+                    stock_fetcher.get_trending(cat)
+                except Exception:
+                    pass
+            try:
+                stock_fetcher.get_crypto_movers()
+            except Exception:
+                pass
+        except Exception:
+            pass
+    threading.Thread(target=_run, daemon=True).start()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    _warm_cache()
     yield
 
 
@@ -48,6 +69,7 @@ app.include_router(predictions.router)
 app.include_router(keys.router)
 app.include_router(watchlist.router)
 app.include_router(alerts.router)
+app.include_router(notify.router)
 
 
 @app.get("/api/health", tags=["health"])
