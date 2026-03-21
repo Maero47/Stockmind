@@ -354,6 +354,34 @@ export async function triggerAlert(alertId: number) {
   return apiFetch<{ triggered: boolean }>(`/api/alerts/${alertId}/trigger`, { method: "POST" });
 }
 
+// ── Portfolio ─────────────────────────────────────────────────────────────────
+
+export async function getPortfolio() {
+  return apiFetch<import("./types").PortfolioPosition[]>("/api/portfolio");
+}
+
+export async function createPosition(data: {
+  symbol: string; quantity: number; avg_buy_price: number; bought_at: string; notes?: string;
+}) {
+  return apiFetch<import("./types").PortfolioPosition>("/api/portfolio", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updatePosition(id: number, data: {
+  quantity?: number; avg_buy_price?: number; notes?: string;
+}) {
+  return apiFetch<import("./types").PortfolioPosition>(`/api/portfolio/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deletePosition(id: number) {
+  return apiFetch<void>(`/api/portfolio/${id}`, { method: "DELETE" });
+}
+
 // ── Health ────────────────────────────────────────────────────────────────────
 
 export async function getHealth(): Promise<{ status: string; service: string }> {

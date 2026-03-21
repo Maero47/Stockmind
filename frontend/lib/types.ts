@@ -152,6 +152,19 @@ export interface PriceAlert {
   created_at: string;
 }
 
+// ── Portfolio ─────────────────────────────────────────────────────────────────
+
+export interface PortfolioPosition {
+  id: number;
+  symbol: string;
+  quantity: number;
+  avg_buy_price: number;
+  bought_at: string;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 // ── Provider metadata (used in UI) ───────────────────────────────────────────
 
 export interface ProviderInfo {

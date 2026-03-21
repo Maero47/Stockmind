@@ -53,8 +53,9 @@ export default function Navbar() {
 
         {/* Nav links */}
         <div className="flex items-center gap-1">
-          <NavLink href="/dashboard" active={pathname === "/dashboard"}>Dashboard</NavLink>
-          <NavLink href="/settings"  active={pathname === "/settings"}>Settings</NavLink>
+          <NavLink href="/dashboard"  active={pathname === "/dashboard"}>Dashboard</NavLink>
+          <NavLink href="/portfolio"  active={pathname === "/portfolio"}>Portfolio</NavLink>
+          <NavLink href="/settings"   active={pathname === "/settings"}>Settings</NavLink>
 
           {user ? (
             /* Authenticated: avatar + sign-out */
