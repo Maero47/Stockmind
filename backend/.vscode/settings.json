@@ -1,7 +1,12 @@
 {
   "python.defaultInterpreterPath": "/Library/Frameworks/Python.framework/Versions/3.14/bin/python3",
   "python.analysis.extraPaths": [
-    "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/site-packages"
+    "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/site-packages",
+    "${workspaceFolder}"
   ],
-  "pyre.pythonPath": "/Library/Frameworks/Python.framework/Versions/3.14/bin/python3"
+  "python.analysis.pythonPath": "/Library/Frameworks/Python.framework/Versions/3.14/bin/python3",
+  "pyre.pythonPath": "/Library/Frameworks/Python.framework/Versions/3.14/bin/python3",
+  "pyre.searchPaths": [
+    "${workspaceFolder}"
+  ]
 }

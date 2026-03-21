@@ -7,6 +7,7 @@ import { LogOut, LogIn } from "lucide-react";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { useStore } from "@/lib/store";
+import { useProfile } from "@/hooks/useProfile";
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
@@ -31,8 +32,8 @@ export default function Navbar() {
     router.refresh();
   }
 
-  // First letter of email as avatar
-  const avatarLetter = user?.email?.[0]?.toUpperCase() ?? "?";
+  const { avatarUrl, initial, avatarColor } = useProfile();
+  const avatarLetter = initial;
 
   return (
     <nav
@@ -48,29 +49,36 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
         {/* Logo */}
         <Link href="/" className="flex items-center">
-          <Image src="/logo.png" alt="StockMind" width={140} height={40} style={{ objectFit: "contain", height: "auto" }} priority />
+          <Image src="/logo.png" alt="StockMind" width={140} height={40} className="h-auto w-auto object-contain" priority />
         </Link>
 
         {/* Nav links */}
         <div className="flex items-center gap-1">
-          <NavLink href="/dashboard"  active={pathname === "/dashboard"}>Dashboard</NavLink>
-          <NavLink href="/portfolio"  active={pathname === "/portfolio"}>Portfolio</NavLink>
-          <NavLink href="/settings"   active={pathname === "/settings"}>Settings</NavLink>
+          <div className="hidden md:flex items-center gap-1">
+            <NavLink href="/dashboard"  active={pathname === "/dashboard"}>Dashboard</NavLink>
+            <NavLink href="/portfolio"  active={pathname === "/portfolio"}>Portfolio</NavLink>
+            <NavLink href="/settings"   active={pathname === "/settings"}>Settings</NavLink>
+          </div>
 
           {user ? (
-            /* Authenticated: avatar + sign-out */
+            /* Authenticated: avatar (links to profile) + sign-out */
             <div className="flex items-center gap-2 ml-3">
-              <div
-                className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold font-mono"
+              <Link
+                href="/profile"
+                className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold font-mono transition-all overflow-hidden"
                 style={{
-                  backgroundColor: "rgba(0,230,118,0.15)",
-                  border: "1px solid rgba(0,230,118,0.35)",
-                  color: "var(--accent-green)",
+                  backgroundColor: avatarUrl ? "transparent" : (pathname === "/profile" ? `${avatarColor}40` : `${avatarColor}25`),
+                  border: `1px solid ${avatarColor}50`,
+                  color: avatarColor,
                 }}
-                title={user.email}
+                title="Profile"
               >
-                {avatarLetter}
-              </div>
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  avatarLetter
+                )}
+              </Link>
               <button
                 onClick={handleSignOut}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors"

@@ -1,4 +1,4 @@
-const STATIC_CACHE = "stockmind-static-v2";
+const STATIC_CACHE = "stockmind-static-v3";
 const API_CACHE = "stockmind-api-v1";
 const ALERT_STORE = "stockmind-alerts";
 
@@ -25,6 +25,7 @@ self.addEventListener("activate", (e) => {
 self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== "GET") return;
+  if (url.protocol !== "http:" && url.protocol !== "https:") return;
 
   if (url.pathname.startsWith("/api/") || url.hostname.includes("supabase")) {
     e.respondWith(networkFirstWithCache(e.request));
