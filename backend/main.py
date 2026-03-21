@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import asyncio
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -11,6 +12,7 @@ from api.middleware.cors import add_cors
 from api.middleware.rate_limit import rate_limit_middleware
 from api.routes import stocks, crypto, news, ai, predictions, keys, watchlist, alerts, notify, portfolio
 from db.database import init_db
+from services.alert_checker import run_alert_checker
 
 
 def _warm_cache():
@@ -37,7 +39,9 @@ def _warm_cache():
 async def lifespan(app: FastAPI):
     await init_db()
     _warm_cache()
+    checker_task = asyncio.create_task(run_alert_checker())
     yield
+    checker_task.cancel()
 
 
 app = FastAPI(

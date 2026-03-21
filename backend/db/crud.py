@@ -123,12 +123,31 @@ async def delete_alert(db: AsyncSession, alert_id: int, user_id: str) -> bool:
     return result.rowcount > 0
 
 
-async def mark_alert_triggered(db: AsyncSession, alert_id: int, user_id: str) -> bool:
+async def mark_alert_triggered(db: AsyncSession, alert_id: int, user_id: str, price: float | None = None) -> bool:
     result = await db.execute(
         update(PriceAlert)
         .where(PriceAlert.id == alert_id)
         .where(PriceAlert.user_id == user_id)
-        .values(triggered=True, triggered_at=datetime.utcnow())
+        .where(PriceAlert.triggered == False)
+        .values(triggered=True, triggered_at=datetime.utcnow(), triggered_price=price)
+    )
+    await db.commit()
+    return result.rowcount > 0
+
+
+async def get_all_pending_alerts(db: AsyncSession) -> list[PriceAlert]:
+    result = await db.execute(
+        select(PriceAlert).where(PriceAlert.triggered == False)
+    )
+    return list(result.scalars().all())
+
+
+async def mark_alert_triggered_system(db: AsyncSession, alert_id: int, price: float | None = None) -> bool:
+    result = await db.execute(
+        update(PriceAlert)
+        .where(PriceAlert.id == alert_id)
+        .where(PriceAlert.triggered == False)
+        .values(triggered=True, triggered_at=datetime.utcnow(), triggered_price=price)
     )
     await db.commit()
     return result.rowcount > 0

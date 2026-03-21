@@ -242,10 +242,10 @@ function Controls({
 }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-      <div className="flex flex-wrap items-center gap-1">
+      <div className="flex flex-wrap items-center gap-1.5 sm:gap-1">
         {PERIODS.map(({ label }, i) => (
           <button key={label} onClick={() => setPeriodIdx(i)}
-            className="px-2.5 py-1 rounded text-xs font-mono font-medium transition-all"
+            className="px-3 py-2 sm:px-2.5 sm:py-1 rounded text-xs font-mono font-medium transition-all min-w-[40px] sm:min-w-0"
             style={{
               backgroundColor: i === periodIdx && !showCustom ? "var(--accent-green)" : "transparent",
               color:  i === periodIdx && !showCustom ? "#080C14" : "var(--text-secondary)",
@@ -270,14 +270,14 @@ function Controls({
         {/* Chart type toggle */}
         <div className="flex rounded overflow-hidden" style={{ border: "1px solid var(--border)" }}>
           <button onClick={() => setChartType("candlestick")} title="Candlestick"
-            className="p-1.5 flex items-center transition-colors"
+            className="p-2.5 sm:p-1.5 flex items-center transition-colors"
             style={{ backgroundColor: chartType === "candlestick" ? "rgba(0,230,118,0.15)" : "transparent", color: chartType === "candlestick" ? "var(--accent-green)" : "var(--text-muted)" }}>
-            <CandleIcon size={12} />
+            <CandleIcon size={14} className="sm:w-3 sm:h-3" />
           </button>
           <button onClick={() => setChartType("line")} title="Line"
-            className="p-1.5 flex items-center transition-colors"
+            className="p-2.5 sm:p-1.5 flex items-center transition-colors"
             style={{ borderLeft: "1px solid var(--border)", backgroundColor: chartType === "line" ? "rgba(0,230,118,0.15)" : "transparent", color: chartType === "line" ? "var(--accent-green)" : "var(--text-muted)" }}>
-            <TrendingUp size={12} />
+            <TrendingUp size={14} className="sm:w-3 sm:h-3" />
           </button>
         </div>
         {/* Overlays */}
@@ -285,7 +285,7 @@ function Controls({
           const active = overlays.has(o);
           return (
             <button key={o} onClick={() => toggleOverlay(o)}
-              className="px-2 py-0.5 rounded text-xs font-mono transition-all"
+              className="px-2.5 py-1.5 sm:px-2 sm:py-0.5 rounded text-xs font-mono transition-all"
               style={{
                 backgroundColor: active ? `${OV_COLORS[o]}22` : "transparent",
                 color:  active ? OV_COLORS[o] : "var(--text-muted)",
@@ -385,24 +385,34 @@ function DrawingCanvas({ tool, drawings, setDrawings, width, height }: {
     return { x: e.clientX - r.left, y: e.clientY - r.top };
   };
 
+  const touchPos = (e: React.TouchEvent) => {
+    const r = canvasRef.current!.getBoundingClientRect();
+    const t = e.touches[0] ?? e.changedTouches[0];
+    return { x: t.clientX - r.left, y: t.clientY - r.top };
+  };
+
+  const finishDraw = (end: { x: number; y: number }) => {
+    if (!active.current || !startPt.current) return;
+    active.current = false;
+    const { x: x1, y: y1 } = startPt.current;
+    if (Math.abs(end.x - x1) < 3 && Math.abs(end.y - y1) < 3 && tool !== "hline") { redraw(); return; }
+    const id = `${Date.now()}`;
+    if (tool === "hline") setDrawings((p) => [...p, { id, type: "hline", x1: 0, y1, x2: width, y2: y1 }]);
+    else if (tool === "trendline") setDrawings((p) => [...p, { id, type: "trendline", x1, y1, x2: end.x, y2: end.y }]);
+    else if (tool === "ray") setDrawings((p) => [...p, { id, type: "ray", x1, y1, x2: end.x, y2: end.y }]);
+    startPt.current = curPt.current = null;
+  };
+
   return (
     <canvas ref={canvasRef} width={width} height={height}
-      style={{ position: "absolute", inset: 0, cursor: tool === "cursor" ? "default" : "crosshair", zIndex: 10, pointerEvents: tool === "cursor" ? "none" : "all" }}
+      style={{ position: "absolute", inset: 0, cursor: tool === "cursor" ? "default" : "crosshair", zIndex: 10, pointerEvents: tool === "cursor" ? "none" : "all", touchAction: tool === "cursor" ? "auto" : "none" }}
       onMouseDown={(e) => { if (tool === "cursor") return; active.current = true; startPt.current = curPt.current = pos(e); }}
       onMouseMove={(e) => { if (!active.current) return; curPt.current = pos(e); redraw(); }}
-      onMouseUp={(e) => {
-        if (!active.current || !startPt.current) return;
-        active.current = false;
-        const end = pos(e);
-        const { x: x1, y: y1 } = startPt.current;
-        if (Math.abs(end.x - x1) < 3 && Math.abs(end.y - y1) < 3 && tool !== "hline") { redraw(); return; }
-        const id = `${Date.now()}`;
-        if (tool === "hline") setDrawings((p) => [...p, { id, type: "hline", x1: 0, y1, x2: width, y2: y1 }]);
-        else if (tool === "trendline") setDrawings((p) => [...p, { id, type: "trendline", x1, y1, x2: end.x, y2: end.y }]);
-        else if (tool === "ray") setDrawings((p) => [...p, { id, type: "ray", x1, y1, x2: end.x, y2: end.y }]);
-        startPt.current = curPt.current = null;
-      }}
-      onMouseLeave={(e) => { if (active.current) (document.dispatchEvent(new MouseEvent("mouseup")), active.current = false, redraw()); }}
+      onMouseUp={(e) => finishDraw(pos(e))}
+      onMouseLeave={() => { if (active.current) { active.current = false; redraw(); } }}
+      onTouchStart={(e) => { if (tool === "cursor") return; e.preventDefault(); active.current = true; startPt.current = curPt.current = touchPos(e); }}
+      onTouchMove={(e) => { if (!active.current) return; e.preventDefault(); curPt.current = touchPos(e); redraw(); }}
+      onTouchEnd={(e) => { e.preventDefault(); finishDraw(touchPos(e)); }}
     />
   );
 }

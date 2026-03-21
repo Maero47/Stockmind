@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Navbar from "@/components/layout/Navbar";
 import StockSearch from "@/components/stocks/StockSearch";
 import StockHeader from "@/components/stocks/StockHeader";
@@ -9,13 +9,17 @@ import TechnicalIndicators from "@/components/stocks/TechnicalIndicators";
 import PredictionCard from "@/components/predictions/PredictionCard";
 import NewsPanel from "@/components/news/NewsPanel";
 import ChatInterface from "@/components/ai/ChatInterface";
+import ChatRoom from "@/components/community/ChatRoom";
+import MobileChatPanel from "@/components/layout/MobileChatPanel";
 import WatchlistTab from "@/components/watchlist/WatchlistTab";
 import AllAlertsPanel from "@/components/alerts/AllAlertsPanel";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { useStore } from "@/lib/store";
 import { useQuote } from "@/hooks/useStockData";
+import { useSwipe } from "@/hooks/useSwipe";
 
 type Tab = "analysis" | "watchlist" | "alerts";
+type RightTab = "ai" | "community";
 
 // ── Panel wrapper ─────────────────────────────────────────────────────────────
 
@@ -42,6 +46,16 @@ export default function DashboardPage() {
 
   const { data: quote, isLoading: quoteLoading } = useQuote(selectedSymbol);
   const [activeTab, setActiveTab] = useState<Tab>("analysis");
+  const [rightTab, setRightTab] = useState<RightTab>("ai");
+
+  const TABS: Tab[] = ["analysis", "watchlist", "alerts"];
+  const swipeLeft = useCallback(() => {
+    setActiveTab((t) => TABS[Math.min(TABS.indexOf(t) + 1, TABS.length - 1)]);
+  }, []);
+  const swipeRight = useCallback(() => {
+    setActiveTab((t) => TABS[Math.max(TABS.indexOf(t) - 1, 0)]);
+  }, []);
+  const swipe = useSwipe(swipeLeft, swipeRight);
 
   // Hydrate API keys from sessionStorage on first render
   useEffect(() => { loadKeys(); }, []);
@@ -53,7 +67,7 @@ export default function DashboardPage() {
     >
       <Navbar />
 
-      <main className="max-w-[1600px] mx-auto px-4 pt-20 pb-12">
+      <main className="max-w-[1600px] mx-auto px-4 pt-20 pb-24 md:pb-12">
         {/* ── Top bar: search + tabs ──────────────────────────────────── */}
         <div className="flex flex-wrap items-center gap-4 mb-6">
           <div className="flex-1 max-w-lg">
@@ -80,6 +94,8 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* ── Swipeable tab content ─────────────────────────────────── */}
+        <div {...swipe}>
         {/* ── Watchlist tab ───────────────────────────────────────────── */}
         {activeTab === "watchlist" && <WatchlistTab />}
 
@@ -132,12 +148,42 @@ export default function DashboardPage() {
               </Section>
             </div>
 
-            {/* ── RIGHT COLUMN (40%) — sticky ───────────────────────────── */}
-            <div className="lg:col-span-2 lg:sticky lg:top-20">
-              <ChatInterface symbol={selectedSymbol} />
+            {/* ── RIGHT COLUMN (40%) — desktop only, sticky ────────────── */}
+            <div className="hidden lg:block lg:col-span-2 lg:sticky lg:top-20">
+              <div
+                className="flex gap-1 rounded-lg p-1 mb-3"
+                style={{ backgroundColor: "var(--bg-surface)", border: "1px solid var(--border)" }}
+              >
+                <button
+                  onClick={() => setRightTab("ai")}
+                  className="flex-1 px-3 py-1.5 rounded-md text-xs font-mono font-medium transition-all"
+                  style={{
+                    backgroundColor: rightTab === "ai" ? "var(--accent-green)" : "transparent",
+                    color: rightTab === "ai" ? "#080C14" : "var(--text-muted)",
+                  }}
+                >
+                  AI Analysis
+                </button>
+                <button
+                  onClick={() => setRightTab("community")}
+                  className="flex-1 px-3 py-1.5 rounded-md text-xs font-mono font-medium transition-all"
+                  style={{
+                    backgroundColor: rightTab === "community" ? "var(--accent-blue)" : "transparent",
+                    color: rightTab === "community" ? "#080C14" : "var(--text-muted)",
+                  }}
+                >
+                  Community
+                </button>
+              </div>
+              {rightTab === "ai" && <ChatInterface symbol={selectedSymbol} />}
+              {rightTab === "community" && <ChatRoom symbol={selectedSymbol} />}
             </div>
+
+            {/* ── Mobile chat FAB + overlay ─────────────────────────────── */}
+            <MobileChatPanel symbol={selectedSymbol} />
           </div>
         )}
+        </div>
       </main>
     </div>
   );

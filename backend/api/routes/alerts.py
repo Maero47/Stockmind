@@ -1,4 +1,3 @@
-import asyncio
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from enum import Enum
@@ -6,7 +5,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from db.database import get_db
 from db import crud
 from api.dependencies.auth import get_current_user
-from services.email import send_alert_triggered
 
 router = APIRouter(prefix="/api/alerts", tags=["alerts"])
 
@@ -17,6 +15,8 @@ class AlertResponse(BaseModel):
     target_price: float
     direction: str
     triggered: bool
+    triggered_at: str | None = None
+    triggered_price: float | None = None
     created_at: str
 
 
@@ -40,7 +40,10 @@ async def get_alerts(
         {
             "id": a.id, "symbol": a.symbol,
             "target_price": a.target_price, "direction": a.direction,
-            "triggered": a.triggered, "created_at": a.created_at.isoformat(),
+            "triggered": a.triggered,
+            "triggered_at": a.triggered_at.isoformat() if a.triggered_at else None,
+            "triggered_price": a.triggered_price,
+            "created_at": a.created_at.isoformat(),
         }
         for a in alerts
     ]
@@ -56,7 +59,9 @@ async def create_alert(
     return {
         "id": alert.id, "symbol": alert.symbol,
         "target_price": alert.target_price, "direction": alert.direction,
-        "triggered": alert.triggered, "created_at": alert.created_at.isoformat(),
+        "triggered": alert.triggered,
+        "triggered_at": None, "triggered_price": None,
+        "created_at": alert.created_at.isoformat(),
     }
 
 
@@ -71,9 +76,14 @@ async def delete_alert(
         raise HTTPException(status_code=404, detail="Alert not found")
 
 
+class TriggerAlertRequest(BaseModel):
+    price: float | None = None
+
+
 @router.post("/{alert_id}/trigger", status_code=200)
 async def trigger_alert(
     alert_id: int,
+    body: TriggerAlertRequest | None = None,
     user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -82,17 +92,9 @@ async def trigger_alert(
     if not alert:
         raise HTTPException(status_code=404, detail="Alert not found")
 
-    ok = await crud.mark_alert_triggered(db, alert_id, user["user_id"])
+    hit_price = body.price if body else None
+    ok = await crud.mark_alert_triggered(db, alert_id, user["user_id"], hit_price)
     if not ok:
-        raise HTTPException(status_code=404, detail="Alert not found")
-
-    # Send email notification in background — don't block the response
-    email = user.get("email")
-    if email:
-        asyncio.get_event_loop().run_in_executor(
-            None,
-            send_alert_triggered,
-            email, alert.symbol, alert.direction, alert.target_price, alert.target_price,
-        )
+        return {"triggered": True}
 
     return {"triggered": True}

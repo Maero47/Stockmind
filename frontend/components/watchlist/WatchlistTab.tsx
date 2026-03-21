@@ -43,7 +43,7 @@ function WatchlistCard({ symbol, onRemove }: { symbol: string; onRemove: () => v
       </Link>
       <button
         onClick={onRemove}
-        className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded"
+        className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity p-2 -mr-1 rounded"
         style={{ color: "var(--text-muted)" }}
         title="Remove"
       >

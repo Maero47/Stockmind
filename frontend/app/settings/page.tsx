@@ -498,7 +498,7 @@ export default function SettingsPage() {
     >
       <Navbar />
 
-      <main className="max-w-3xl mx-auto px-4 pt-24 pb-20">
+      <main className="max-w-3xl mx-auto px-4 pt-24 pb-28 md:pb-20">
 
         {/* ── Back link ──────────────────────────────────────────────── */}
         <Link

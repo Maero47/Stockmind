@@ -1,24 +1,22 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import type { PriceAlert } from "@/lib/types";
 import type { AlertToastData } from "@/components/alerts/AlertToast";
+import { markFired, hasFired } from "@/lib/firedAlerts";
 
 export function usePriceAlertChecker(
   symbol: string,
   livePrice: number | null,
   alerts: PriceAlert[],
-  onTrigger: (alertId: number) => void,
+  onTrigger: (alertId: number, price?: number) => void,
   onToast?: (data: AlertToastData) => void,
 ) {
-  // Track already-fired IDs this session to prevent double-firing
-  const firedRef = useRef<Set<number>>(new Set());
-
   useEffect(() => {
     if (livePrice == null) return;
 
     const symbolAlerts = alerts.filter(
-      (a) => a.symbol === symbol && !a.triggered && !firedRef.current.has(a.id)
+      (a) => a.symbol === symbol && !a.triggered && !hasFired(a.id)
     );
 
     for (const alert of symbolAlerts) {
@@ -28,9 +26,8 @@ export function usePriceAlertChecker(
 
       if (!hit) continue;
 
-      // Mark fired immediately to prevent double-fire before DB round-trip
-      firedRef.current.add(alert.id);
-      onTrigger(alert.id);
+      markFired(alert.id);
+      onTrigger(alert.id, livePrice);
 
       // In-app toast
       onToast?.({

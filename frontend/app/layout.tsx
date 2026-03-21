@@ -3,6 +3,9 @@ import { Geist, DM_Mono } from "next/font/google";
 import "./globals.css";
 import AuthListener from "@/components/AuthListener";
 import PWARegister from "@/components/PWARegister";
+import MobileNav from "@/components/layout/MobileNav";
+import InstallPrompt from "@/components/InstallPrompt";
+import AlertMonitor from "@/components/alerts/AlertMonitor";
 
 const geist = Geist({
   variable: "--font-geist",
@@ -39,10 +42,16 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+      </head>
       <body className={`${geist.variable} ${dmMono.variable} antialiased`}>
         <PWARegister />
         <AuthListener />
+        <AlertMonitor />
         {children}
+        <MobileNav />
+        <InstallPrompt />
       </body>
     </html>
   );

@@ -1,9 +1,117 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Bell, BellOff, BellRing, Trash2, ArrowUp, ArrowDown, Plus } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Bell, BellOff, BellRing, Trash2, ArrowUp, ArrowDown, Plus, Search } from "lucide-react";
 import { useAlerts } from "@/hooks/useAlerts";
+import { useSearch } from "@/hooks/useStockData";
 import type { AlertDirection } from "@/lib/types";
+
+const POPULAR_SYMBOLS = [
+  { symbol: "AAPL", name: "Apple Inc." },
+  { symbol: "MSFT", name: "Microsoft Corp." },
+  { symbol: "GOOGL", name: "Alphabet Inc." },
+  { symbol: "NVDA", name: "NVIDIA Corp." },
+  { symbol: "TSLA", name: "Tesla Inc." },
+  { symbol: "AMZN", name: "Amazon.com Inc." },
+  { symbol: "BTC-USD", name: "Bitcoin USD" },
+  { symbol: "ETH-USD", name: "Ethereum USD" },
+];
+
+function SymbolAutocomplete({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState(value);
+  const ref = useRef<HTMLDivElement>(null);
+  const { data: results, isLoading } = useSearch(query);
+
+  useEffect(() => { setQuery(value); }, [value]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const suggestions =
+    query.length === 0
+      ? POPULAR_SYMBOLS
+      : results && results.length > 0
+      ? results.map((r) => ({ symbol: r.symbol, name: r.name }))
+      : POPULAR_SYMBOLS.filter(
+          (s) =>
+            s.symbol.toLowerCase().includes(query.toLowerCase()) ||
+            s.name.toLowerCase().includes(query.toLowerCase())
+        );
+
+  function pick(sym: string) {
+    onChange(sym.toUpperCase());
+    setQuery(sym.toUpperCase());
+    setOpen(false);
+  }
+
+  return (
+    <div ref={ref} className="relative flex-1 min-w-[120px]">
+      <div className="flex items-center rounded-lg overflow-hidden"
+        style={{ border: "1px solid var(--border)" }}>
+        <Search size={13} className="ml-2.5 shrink-0" style={{ color: "var(--text-muted)" }} />
+        <input
+          type="text"
+          placeholder="Search symbol..."
+          value={query}
+          onChange={(e) => { setQuery(e.target.value.toUpperCase()); onChange(e.target.value.toUpperCase()); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+          className="flex-1 px-2 py-2 text-sm font-mono bg-transparent outline-none"
+          style={{ color: "var(--text-primary)" }}
+        />
+        {isLoading && (
+          <span className="w-3.5 h-3.5 border-2 border-t-transparent rounded-full animate-spin mr-2 shrink-0"
+            style={{ borderColor: "var(--accent-green)" }} />
+        )}
+      </div>
+
+      {open && suggestions.length > 0 && (
+        <div
+          className="absolute top-full left-0 right-0 mt-1 rounded-lg overflow-hidden z-50 max-h-52 overflow-y-auto"
+          style={{
+            backgroundColor: "var(--bg-elevated)",
+            border: "1px solid var(--border-bright)",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+          }}
+        >
+          <p className="px-3 pt-2 pb-1 text-[10px] font-medium tracking-wider uppercase"
+            style={{ color: "var(--text-muted)" }}>
+            {query.length === 0 ? "Popular" : "Results"}
+          </p>
+          {suggestions.slice(0, 8).map((s) => (
+            <button
+              key={s.symbol}
+              type="button"
+              onMouseDown={() => pick(s.symbol)}
+              className="w-full flex items-center gap-3 px-3 py-2 text-left transition-colors"
+              style={{ backgroundColor: "transparent" }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--bg-subtle)")}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+            >
+              <span className="font-mono text-xs font-semibold w-14" style={{ color: "var(--accent-green)" }}>
+                {s.symbol}
+              </span>
+              <span className="text-xs truncate" style={{ color: "var(--text-secondary)" }}>
+                {s.name}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function AllAlertsPanel() {
   const { alerts, create, remove, isLoading } = useAlerts();
@@ -110,15 +218,8 @@ export default function AllAlertsPanel() {
         </p>
 
         <div className="flex flex-wrap gap-3">
-          {/* Symbol input */}
-          <input
-            type="text"
-            placeholder="Symbol (e.g. AAPL)"
-            value={symbol}
-            onChange={(e) => setSymbol(e.target.value.toUpperCase())}
-            className="flex-1 min-w-[120px] px-3 py-2 rounded-lg text-sm font-mono bg-transparent outline-none"
-            style={{ border: "1px solid var(--border)", color: "var(--text-primary)" }}
-          />
+          {/* Symbol input with autocomplete */}
+          <SymbolAutocomplete value={symbol} onChange={setSymbol} />
 
           {/* Direction toggle */}
           <div className="flex gap-1.5">
@@ -276,45 +377,70 @@ export default function AllAlertsPanel() {
           </p>
           <div
             className="rounded-xl overflow-hidden"
-            style={{ backgroundColor: "var(--bg-surface)", border: "1px solid var(--border)", opacity: 0.6 }}
+            style={{ backgroundColor: "var(--bg-surface)", border: "1px solid var(--border)" }}
           >
-            {triggered.map((a, i) => (
-              <div
-                key={a.id}
-                className="flex items-center justify-between px-5 py-3.5"
-                style={{ borderBottom: i < triggered.length - 1 ? "1px solid var(--border)" : "none" }}
-              >
-                <div className="flex items-center gap-4">
-                  <div
-                    className="w-8 h-8 rounded-full flex items-center justify-center"
-                    style={{ backgroundColor: "rgba(255,255,255,0.06)" }}
-                  >
-                    {a.direction === "above"
-                      ? <ArrowUp size={14} style={{ color: "var(--text-muted)" }} />
-                      : <ArrowDown size={14} style={{ color: "var(--text-muted)" }} />
-                    }
-                  </div>
-                  <div>
-                    <span className="font-mono text-sm font-semibold" style={{ color: "var(--text-secondary)" }}>
-                      {a.symbol}
-                    </span>
-                    <span className="font-mono text-xs ml-2" style={{ color: "var(--text-muted)" }}>
-                      {a.direction === "above" ? "above" : "below"} ${a.target_price.toLocaleString()}
-                    </span>
-                    <span className="text-xs ml-2 px-1.5 py-0.5 rounded font-mono" style={{ backgroundColor: "rgba(0,230,118,0.1)", color: "var(--accent-green)" }}>
-                      ✓ Triggered
-                    </span>
-                  </div>
-                </div>
-                <button
-                  onClick={() => remove(a.id)}
-                  className="p-1.5 rounded-lg transition-colors"
-                  style={{ color: "var(--text-muted)" }}
+            {triggered.map((a, i) => {
+              const firedAt = a.triggered_at ? new Date(a.triggered_at) : null;
+              const isAbove = a.direction === "above";
+              const color = isAbove ? "var(--accent-green)" : "var(--accent-red)";
+              return (
+                <div
+                  key={a.id}
+                  className="px-5 py-4"
+                  style={{ borderBottom: i < triggered.length - 1 ? "1px solid var(--border)" : "none" }}
                 >
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            ))}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div
+                        className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+                        style={{ backgroundColor: isAbove ? "rgba(0,230,118,0.12)" : "rgba(255,61,87,0.12)" }}
+                      >
+                        {isAbove
+                          ? <ArrowUp size={14} style={{ color }} />
+                          : <ArrowDown size={14} style={{ color }} />
+                        }
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+                            {a.symbol}
+                          </span>
+                          <span className="text-xs px-1.5 py-0.5 rounded font-mono" style={{ backgroundColor: isAbove ? "rgba(0,230,118,0.1)" : "rgba(255,61,87,0.1)", color }}>
+                            Triggered
+                          </span>
+                        </div>
+                        <p className="text-xs font-mono mt-1" style={{ color: "var(--text-muted)" }}>
+                          Target: {isAbove ? "above" : "below"}{" "}
+                          <span style={{ color: "var(--text-secondary)" }}>${a.target_price.toLocaleString()}</span>
+                          {a.triggered_price != null && (
+                            <>
+                              {" "}&rarr; hit{" "}
+                              <span style={{ color }}>${a.triggered_price.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                            </>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => remove(a.id)}
+                      className="p-1.5 rounded-lg transition-colors shrink-0"
+                      style={{ color: "var(--text-muted)" }}
+                      title="Delete"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                  {firedAt && (
+                    <div className="ml-12 mt-1.5 flex items-center gap-1.5">
+                      <BellRing size={10} style={{ color: "var(--text-muted)" }} />
+                      <span className="text-[11px] font-mono" style={{ color: "var(--text-muted)" }}>
+                        Fired {firedAt.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })} at {firedAt.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

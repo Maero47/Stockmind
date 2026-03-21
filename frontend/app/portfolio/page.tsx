@@ -27,7 +27,7 @@ export default function PortfolioPage() {
     >
       <Navbar />
 
-      <main className="max-w-[1400px] mx-auto px-4 pt-20 pb-12">
+      <main className="max-w-[1400px] mx-auto px-4 pt-20 pb-24 md:pb-12">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>

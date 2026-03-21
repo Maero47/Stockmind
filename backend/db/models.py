@@ -56,6 +56,7 @@ class PriceAlert(Base):
     direction: Mapped[str] = mapped_column(String(5), nullable=False)   # "above" | "below"
     triggered: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     triggered_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    triggered_price: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
 

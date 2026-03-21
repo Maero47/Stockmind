@@ -1,6 +1,7 @@
 "use client";
 
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
+import { useState } from "react";
+import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import type { EnrichedPosition } from "@/hooks/usePortfolioStats";
 
 const COLORS = [
@@ -18,6 +19,8 @@ interface Props {
 }
 
 export default function AllocationChart({ positions, totalValue }: Props) {
+  const [hovered, setHovered] = useState<number | null>(null);
+
   if (!positions.length) return null;
 
   const sorted = [...positions].sort((a, b) => b.marketValue - a.marketValue);
@@ -26,6 +29,8 @@ export default function AllocationChart({ positions, totalValue }: Props) {
     value: p.marketValue,
     pct: p.allocation,
   }));
+
+  const active = hovered !== null ? data[hovered] : null;
 
   const fmtTotal = totalValue >= 1_000_000
     ? `$${(totalValue / 1_000_000).toFixed(2)}M`
@@ -46,60 +51,64 @@ export default function AllocationChart({ positions, totalValue }: Props) {
       </p>
 
       <div className="flex flex-col items-center">
-        <div className="relative" style={{ width: 180, height: 180 }}>
+        <div className="relative w-full max-w-[220px] aspect-square">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
                 data={data}
                 cx="50%"
                 cy="50%"
-                innerRadius={52}
-                outerRadius={82}
+                innerRadius="30%"
+                outerRadius="46%"
                 paddingAngle={2}
                 dataKey="value"
                 stroke="none"
                 animationBegin={0}
                 animationDuration={600}
+                onMouseEnter={(_, i) => setHovered(i)}
+                onMouseLeave={() => setHovered(null)}
               >
                 {data.map((_, i) => (
-                  <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                  <Cell
+                    key={i}
+                    fill={COLORS[i % COLORS.length]}
+                    opacity={hovered !== null && hovered !== i ? 0.4 : 1}
+                    style={{ transition: "opacity 0.15s" }}
+                  />
                 ))}
               </Pie>
-              <Tooltip
-                content={({ payload }) => {
-                  if (!payload?.length) return null;
-                  const d = payload[0].payload;
-                  return (
-                    <div
-                      className="rounded-lg px-3 py-2 text-xs font-mono"
-                      style={{
-                        backgroundColor: "var(--bg-elevated)",
-                        border: "1px solid var(--border-bright)",
-                        color: "var(--text-primary)",
-                        boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
-                      }}
-                    >
-                      <p className="font-bold">{d.name}</p>
-                      <p style={{ color: "var(--text-muted)" }}>${fmt(d.value)} -- {fmt(d.pct)}%</p>
-                    </div>
-                  );
-                }}
-              />
             </PieChart>
           </ResponsiveContainer>
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-            <span className="text-[10px] uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Total</span>
-            <span className="text-sm font-bold font-mono" style={{ color: "var(--text-primary)" }}>
-              {fmtTotal}
-            </span>
+            {active ? (
+              <>
+                <span className="text-[10px] font-bold font-mono" style={{ color: COLORS[hovered! % COLORS.length] }}>
+                  {active.name}
+                </span>
+                <span className="text-sm font-bold font-mono" style={{ color: "var(--text-primary)" }}>
+                  ${fmt(active.value)}
+                </span>
+                <span className="text-[10px] font-mono" style={{ color: "var(--text-muted)" }}>
+                  {fmt(active.pct)}%
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="text-[10px] uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Total</span>
+                <span className="text-sm font-bold font-mono" style={{ color: "var(--text-primary)" }}>
+                  {fmtTotal}
+                </span>
+              </>
+            )}
           </div>
         </div>
 
         <div className="w-full mt-4 space-y-1">
           {data.map((d, i) => (
-            <div key={d.name} className="flex items-center gap-2 text-xs px-1 py-1 rounded-md transition-colors"
-              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.02)")}
-              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+            <div key={d.name} className="flex items-center gap-2 text-xs px-1 py-1 rounded-md transition-colors cursor-default"
+              onMouseEnter={() => setHovered(i)}
+              onMouseLeave={() => setHovered(null)}
+              style={{ backgroundColor: hovered === i ? "rgba(255,255,255,0.04)" : "transparent" }}
             >
               <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
               <span className="font-mono font-semibold" style={{ color: "var(--text-primary)" }}>{d.name}</span>

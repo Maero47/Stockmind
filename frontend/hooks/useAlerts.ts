@@ -24,8 +24,8 @@ export function useAlerts() {
     await mutate();
   }
 
-  async function trigger(alertId: number) {
-    await triggerAlert(alertId);
+  async function trigger(alertId: number, price?: number) {
+    await triggerAlert(alertId, price);
     await mutate();
   }
 

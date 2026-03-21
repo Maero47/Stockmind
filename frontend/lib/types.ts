@@ -149,6 +149,8 @@ export interface PriceAlert {
   target_price: number;
   direction: AlertDirection;
   triggered: boolean;
+  triggered_at: string | null;
+  triggered_price: number | null;
   created_at: string;
 }
 
@@ -163,6 +165,57 @@ export interface PortfolioPosition {
   notes: string | null;
   created_at: string;
   updated_at: string;
+}
+
+// ── User Profile ──────────────────────────────────────────────────────────────
+
+export interface UserProfile {
+  user_id: string;
+  display_name: string;
+  bio: string | null;
+  avatar_color: string;
+  avatar_url: string | null;
+  created_at: string;
+}
+
+// ── Chat Room ─────────────────────────────────────────────────────────────────
+
+export interface ChatRoomMessage {
+  id: number;
+  user_id: string;
+  symbol: string;
+  content: string;
+  created_at: string;
+  display_name: string;
+  avatar_color: string;
+  avatar_url: string | null;
+  account_age_days: number;
+}
+
+// ── Prediction Posts ─────────────────────────────────────────────────────────
+
+export type PredictionDirection = "bullish" | "bearish";
+
+export interface PredictionPost {
+  id: number;
+  user_id: string;
+  symbol: string;
+  direction: PredictionDirection;
+  target_price: number | null;
+  note: string | null;
+  created_at: string;
+  display_name: string;
+  avatar_color: string;
+  avatar_url: string | null;
+  likes_count: number;
+  liked_by_me: boolean;
+}
+
+// ── Follows ──────────────────────────────────────────────────────────────────
+
+export interface FollowCounts {
+  followers: number;
+  following: number;
 }
 
 // ── Provider metadata (used in UI) ───────────────────────────────────────────

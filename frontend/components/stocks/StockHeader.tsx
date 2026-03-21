@@ -95,7 +95,7 @@ export default function StockHeader({ quote, isLoading }: Props) {
   // Price alerts + in-app toast
   const { alerts, trigger } = useAlerts();
   const [activeToast, setActiveToast] = useState<AlertToastData | null>(null);
-  const onTrigger = useCallback((id: number) => trigger(id), [trigger]);
+  const onTrigger = useCallback((id: number, p?: number) => trigger(id, p), [trigger]);
   const onToast   = useCallback((data: AlertToastData) => setActiveToast(data), []);
   usePriceAlertChecker(symbol, price, alerts, onTrigger, onToast);
 

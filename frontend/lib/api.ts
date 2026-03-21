@@ -350,8 +350,11 @@ export async function deleteAlert(alertId: number) {
   return apiFetch<void>(`/api/alerts/${alertId}`, { method: "DELETE" });
 }
 
-export async function triggerAlert(alertId: number) {
-  return apiFetch<{ triggered: boolean }>(`/api/alerts/${alertId}/trigger`, { method: "POST" });
+export async function triggerAlert(alertId: number, price?: number) {
+  return apiFetch<{ triggered: boolean }>(`/api/alerts/${alertId}/trigger`, {
+    method: "POST",
+    body: JSON.stringify({ price: price ?? null }),
+  });
 }
 
 // ── Portfolio ─────────────────────────────────────────────────────────────────
