@@ -88,6 +88,8 @@ async def add_message(
     user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    if body.role not in ("user", "assistant"):
+        raise HTTPException(status_code=400, detail="Invalid message role")
     msg = await crud.add_chat_message(db, conv_id, body.role, body.content)
     return {
         "id": msg.id, "conversation_id": msg.conversation_id,

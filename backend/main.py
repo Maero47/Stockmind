@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 import asyncio
+import os
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -50,6 +51,9 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+if os.environ.get("ENVIRONMENT") == "production":
+    app.add_middleware(HTTPSRedirectMiddleware)
 
 # Security headers
 @app.middleware("http")

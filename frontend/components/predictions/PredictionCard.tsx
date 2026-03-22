@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { TrendingUp, TrendingDown, Minus, Brain, RefreshCw } from "lucide-react";
 import { usePrediction } from "@/hooks/useStockData";
@@ -36,6 +37,13 @@ interface Props { symbol: string }
 
 export default function PredictionCard({ symbol }: Props) {
   const { data: pred, isLoading, error, mutate } = usePrediction(symbol);
+  const [spinning, setSpinning] = useState(false);
+
+  function handleRefresh() {
+    setSpinning(true);
+    const minSpin = new Promise((r) => setTimeout(r, 600));
+    Promise.all([mutate(), minSpin]).finally(() => setSpinning(false));
+  }
 
   if (isLoading) {
     return (
@@ -73,11 +81,12 @@ export default function PredictionCard({ symbol }: Props) {
         </p>
         {!is404 && (
           <button
-            onClick={() => mutate()}
+            onClick={handleRefresh}
+            disabled={spinning}
             className="mt-3 flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-colors"
             style={{ backgroundColor: "var(--bg-subtle)", color: "var(--text-secondary)" }}
           >
-            <RefreshCw size={11} /> Run Prediction
+            <RefreshCw size={11} className={spinning ? "animate-spin" : ""} /> Run Prediction
           </button>
         )}
       </div>
@@ -102,11 +111,16 @@ export default function PredictionCard({ symbol }: Props) {
           </span>
         </div>
         <button
-          onClick={() => mutate()}
+          onClick={handleRefresh}
+          disabled={spinning}
           className="p-1 rounded transition-colors hover:bg-bg-subtle"
           title="Refresh prediction"
         >
-          <RefreshCw size={12} style={{ color: "var(--text-muted)" }} />
+          <RefreshCw
+            size={12}
+            className={spinning ? "animate-spin" : ""}
+            style={{ color: "var(--text-muted)" }}
+          />
         </button>
       </div>
 

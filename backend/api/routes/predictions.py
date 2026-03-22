@@ -42,8 +42,8 @@ async def predict_symbol(
     symbol = symbol.upper()
     try:
         result = ml_predict(symbol)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Prediction not available")
     except Exception:
         raise HTTPException(status_code=500, detail="Prediction failed. Please try again.")
 

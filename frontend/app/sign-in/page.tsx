@@ -48,7 +48,7 @@ function SignInForm() {
   async function handleOAuth(provider: "google" | "github") {
     await supabase.auth.signInWithOAuth({
       provider,
-      options: { redirectTo: `${location.origin}/auth/callback?next=${next}` },
+      options: { redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || location.origin}/auth/callback?next=${next}` },
     });
   }
 

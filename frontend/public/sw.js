@@ -29,6 +29,14 @@ self.addEventListener("fetch", (e) => {
   if (url.protocol !== "http:" && url.protocol !== "https:") return;
 
   if (url.pathname.startsWith("/api/") || url.hostname.includes("supabase")) {
+    const sensitive = url.hostname.includes("supabase") ||
+      url.pathname.startsWith("/api/auth") ||
+      url.pathname.startsWith("/api/keys") ||
+      url.pathname.startsWith("/api/notifications/settings") ||
+      url.pathname.startsWith("/api/chat");
+    if (sensitive) {
+      return;
+    }
     e.respondWith(networkFirstWithCache(e.request));
   } else if (url.pathname.startsWith("/_next/static/") || url.pathname.match(/\.(js|css|png|jpg|svg|ico|woff2?)$/)) {
     e.respondWith(cacheFirst(e.request));

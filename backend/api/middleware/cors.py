@@ -1,7 +1,7 @@
 import os
 from fastapi.middleware.cors import CORSMiddleware
 
-_raw = os.environ.get("ALLOWED_ORIGINS", "*")
+_raw = os.environ.get("ALLOWED_ORIGINS", "http://localhost:3000")
 _origins = [o.strip() for o in _raw.split(",")] if _raw != "*" else ["*"]
 
 

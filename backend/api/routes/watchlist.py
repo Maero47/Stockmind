@@ -1,3 +1,4 @@
+import re
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -56,4 +57,6 @@ async def remove_from_watchlist(
     user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    if not re.match(r"^[A-Za-z0-9.\-]{1,20}$", symbol):
+        raise HTTPException(status_code=400, detail="Invalid symbol")
     await crud.remove_from_watchlist(db, user["user_id"], symbol)

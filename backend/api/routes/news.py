@@ -1,3 +1,4 @@
+import re
 import time
 import yfinance as yf
 from fastapi import APIRouter, HTTPException
@@ -85,6 +86,8 @@ async def get_news(symbol: str):
     Sentiment is scored with lightweight keyword analysis.
     Results cached 5 minutes.
     """
+    if not re.match(r"^[A-Za-z0-9.\-]{1,20}$", symbol):
+        raise HTTPException(status_code=400, detail="Invalid symbol")
     symbol = symbol.upper()
     cached = _cache_get(symbol)
     if cached is not None:

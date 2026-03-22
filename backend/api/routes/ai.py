@@ -98,8 +98,8 @@ async def analyze(
     # ── Build LangChain model ─────────────────────────────────────────────────
     try:
         model = get_chat_model(provider=provider, api_key=api_key)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Failed to process request")
 
     # ── Stream response ───────────────────────────────────────────────────────
     return StreamingResponse(

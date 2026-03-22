@@ -1,4 +1,5 @@
-from fastapi import APIRouter
+import re
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import RedirectResponse
 from services.data.stock_fetcher import get_crypto_movers
 
@@ -12,6 +13,6 @@ async def crypto_movers():
 
 @router.get("/{symbol}")
 async def get_crypto(symbol: str):
-    # Crypto symbols (BTC-USD, ETH-USD, etc.) are fully supported by the stocks
-    # endpoint via yfinance — redirect there instead of duplicating logic.
+    if not re.match(r"^[A-Za-z0-9.\-]{1,20}$", symbol):
+        raise HTTPException(status_code=400, detail="Invalid symbol")
     return RedirectResponse(url=f"/api/stocks/{symbol.upper()}", status_code=307)

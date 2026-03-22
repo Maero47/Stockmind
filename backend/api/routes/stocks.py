@@ -109,8 +109,8 @@ async def get_realtime(symbol: str = _SYM):
     symbol = symbol.upper()
     try:
         data = stock_fetcher.get_realtime_quote(symbol)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Stock data not available")
 
     return QuoteResponse(
         symbol=data["symbol"], name=data["name"],
@@ -130,8 +130,8 @@ async def get_stock(symbol: str = _SYM, db: AsyncSession = Depends(get_db)):
     symbol = symbol.upper()
     try:
         data = stock_fetcher.get_quote_yfinance(symbol)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Stock data not available")
 
     try:
         await crud.log_search(db, symbol)
@@ -177,8 +177,8 @@ async def get_stock_history(
     symbol = symbol.upper()
     try:
         bars = stock_fetcher.get_history(symbol, period=period, interval=interval, start=start, end=end)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Stock data not available")
 
     return HistoryResponse(
         symbol=symbol,
@@ -198,8 +198,8 @@ async def get_indicators(symbol: str = _SYM):
     symbol = symbol.upper()
     try:
         bars = stock_fetcher.get_history(symbol, period="3mo", interval="1d")
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Stock data not available")
 
     df = pd.DataFrame(bars)
     df = df[["open", "high", "low", "close", "volume"]].astype(float)

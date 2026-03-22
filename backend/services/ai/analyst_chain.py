@@ -194,8 +194,8 @@ async def stream_analysis(
     try:
         ctx = _build_context(symbol)
         system_prompt = _build_system_prompt(ctx)
-    except Exception as exc:
-        yield f"data: [ERROR] Failed to fetch market data: {exc}\n\n"
+    except Exception:
+        yield f"data: [ERROR] Failed to fetch market data\n\n"
         return
 
     # Build message list: system + history + current question
@@ -221,8 +221,8 @@ async def stream_analysis(
             token = chunk.content
             if token:
                 yield f"data: {token}\n\n"
-    except Exception as exc:
-        yield f"data: [ERROR] {exc}\n\n"
+    except Exception:
+        yield f"data: [ERROR] Analysis failed\n\n"
         return
 
     yield "data: [DONE]\n\n"

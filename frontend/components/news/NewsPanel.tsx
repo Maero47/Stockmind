@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { ExternalLink, Newspaper, RefreshCw } from "lucide-react";
 import { useNews } from "@/hooks/useStockData";
 import type { SentimentLabel } from "@/lib/types";
@@ -23,6 +24,13 @@ interface Props { symbol: string }
 
 export default function NewsPanel({ symbol }: Props) {
   const { data: news, isLoading, mutate } = useNews(symbol);
+  const [spinning, setSpinning] = useState(false);
+
+  function handleRefresh() {
+    setSpinning(true);
+    const minSpin = new Promise((r) => setTimeout(r, 600));
+    Promise.all([mutate(), minSpin]).finally(() => setSpinning(false));
+  }
 
   return (
     <div
@@ -36,11 +44,16 @@ export default function NewsPanel({ symbol }: Props) {
           News &amp; Sentiment
         </span>
         <button
-          onClick={() => mutate()}
+          onClick={handleRefresh}
+          disabled={spinning}
           className="ml-auto p-1 rounded transition-colors hover:bg-bg-elevated"
           title="Refresh"
         >
-          <RefreshCw size={12} style={{ color: "var(--text-muted)" }} />
+          <RefreshCw
+            size={12}
+            className={spinning ? "animate-spin" : ""}
+            style={{ color: "var(--text-muted)" }}
+          />
         </button>
       </div>
 
