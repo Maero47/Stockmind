@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Bookmark, X, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { Bookmark, X, TrendingUp, TrendingDown, Minus, GripVertical } from "lucide-react";
+import { Reorder } from "framer-motion";
 import { useWatchlist } from "@/hooks/useWatchlist";
 import { useQuote } from "@/hooks/useStockData";
 
@@ -16,49 +17,56 @@ function WatchlistCard({ symbol, onRemove }: { symbol: string; onRemove: () => v
   const Icon      = isFlat ? Minus : isPos ? TrendingUp : TrendingDown;
 
   return (
-    <div
-      className="glass-card p-4 flex items-center justify-between gap-3 group"
-      style={{ position: "relative" }}
-    >
-      <Link href={`/stock/${symbol}`} className="flex-1 min-w-0">
-        <div className="flex items-center justify-between gap-2">
-          <div>
-            <p className="font-mono text-sm font-semibold" style={{ color: "var(--accent-green)" }}>
-              {symbol}
-            </p>
-            <p className="text-xs truncate mt-0.5" style={{ color: "var(--text-muted)" }}>
-              {quote?.name ?? "—"}
-            </p>
-          </div>
-          <div className="text-right">
-            <p className="font-mono text-sm font-bold" style={{ color: "var(--text-primary)" }}>
-              {price != null ? `$${price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
-            </p>
-            <p className="flex items-center justify-end gap-1 text-xs font-mono" style={{ color }}>
-              <Icon size={11} />
-              {changePct != null ? `${isPos ? "+" : ""}${changePct.toFixed(2)}%` : "—"}
-            </p>
-          </div>
-        </div>
-      </Link>
-      <button
-        onClick={onRemove}
-        className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity p-2 -mr-1 rounded"
+    <div className="flex items-center gap-2">
+      <GripVertical
+        size={14}
+        className="shrink-0 cursor-grab active:cursor-grabbing"
         style={{ color: "var(--text-muted)" }}
-        title="Remove"
+      />
+      <div
+        className="glass-card p-4 flex items-center justify-between gap-3 group flex-1"
+        style={{ position: "relative" }}
       >
-        <X size={14} />
-      </button>
+        <Link href={`/stock/${symbol}`} className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <p className="font-mono text-sm font-semibold" style={{ color: "var(--accent-green)" }}>
+                {symbol}
+              </p>
+              <p className="text-xs truncate mt-0.5" style={{ color: "var(--text-muted)" }}>
+                {quote?.name ?? "\u2014"}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="font-mono text-sm font-bold" style={{ color: "var(--text-primary)" }}>
+                {price != null ? `$${price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "\u2014"}
+              </p>
+              <p className="flex items-center justify-end gap-1 text-xs font-mono" style={{ color }}>
+                <Icon size={11} />
+                {changePct != null ? `${isPos ? "+" : ""}${changePct.toFixed(2)}%` : "\u2014"}
+              </p>
+            </div>
+          </div>
+        </Link>
+        <button
+          onClick={onRemove}
+          className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity p-2 -mr-1 rounded"
+          style={{ color: "var(--text-muted)" }}
+          title="Remove"
+        >
+          <X size={14} />
+        </button>
+      </div>
     </div>
   );
 }
 
 export default function WatchlistTab() {
-  const { items, isLoading, remove } = useWatchlist();
+  const { items, isLoading, remove, reorder, symbols } = useWatchlist();
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+      <div className="space-y-3">
         {[1, 2, 3, 4].map((i) => (
           <div key={i} className="glass-card p-4 animate-pulse h-20" style={{ background: "var(--bg-subtle)" }} />
         ))}
@@ -81,10 +89,18 @@ export default function WatchlistTab() {
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-      {items.map((item) => (
-        <WatchlistCard key={item.symbol} symbol={item.symbol} onRemove={() => remove(item.symbol)} />
+    <Reorder.Group
+      axis="y"
+      values={symbols}
+      onReorder={reorder}
+      className="space-y-2"
+      as="div"
+    >
+      {symbols.map((sym) => (
+        <Reorder.Item key={sym} value={sym} as="div">
+          <WatchlistCard symbol={sym} onRemove={() => remove(sym)} />
+        </Reorder.Item>
       ))}
-    </div>
+    </Reorder.Group>
   );
 }

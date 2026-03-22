@@ -27,11 +27,15 @@ async def init_db():
     import db.models  # noqa: F401 — registers models with Base.metadata
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        # add triggered_price column if missing (SQLite doesn't support IF NOT EXISTS on ALTER)
-        try:
-            await conn.execute(text("ALTER TABLE price_alerts ADD COLUMN triggered_price FLOAT"))
-        except Exception:
-            pass
+        migrations = [
+            "ALTER TABLE price_alerts ADD COLUMN triggered_price FLOAT",
+            "ALTER TABLE watchlist ADD COLUMN sort_order INTEGER DEFAULT 0",
+        ]
+        for sql in migrations:
+            try:
+                await conn.execute(text(sql))
+            except Exception:
+                pass
 
 
 async def get_db():

@@ -2,9 +2,10 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Search, ArrowRight, Clock, X } from "lucide-react";
+import { Search, ArrowRight, Clock, X, User } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useSearch } from "@/hooks/useStockData";
+import { useUserSearch } from "@/hooks/useUserSearch";
 
 const POPULAR = [
   { symbol: "AAPL",    name: "Apple Inc." },
@@ -47,7 +48,7 @@ interface Props {
 
 export default function StockSearch({
   size = "hero",
-  placeholder = "Search stocks or crypto… AAPL, BTC, TSLA",
+  placeholder = "Search stocks, crypto, or people…",
 }: Props) {
   const router            = useRouter();
   const setSelectedSymbol = useStore((s) => s.setSelectedSymbol);
@@ -59,6 +60,7 @@ export default function StockSearch({
   const containerRef = useRef<HTMLDivElement>(null);
 
   const { data: liveResults, isLoading: searching } = useSearch(query);
+  const { users: userResults } = useUserSearch(query);
 
   // Load recent on mount
   useEffect(() => { setRecent(getRecent()); }, []);
@@ -112,6 +114,12 @@ export default function StockSearch({
     setOpen(false);
     setSelectedSymbol(upper);
     if (size === "hero") router.push("/dashboard");
+  };
+
+  const navigateToProfile = (userId: string) => {
+    setQuery("");
+    setOpen(false);
+    router.push(`/profile/${userId}`);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -228,14 +236,14 @@ export default function StockSearch({
             </>
           )}
 
-          {/* Popular / live results */}
+          {/* Stocks */}
           {suggestions.length > 0 && (
             <>
               <p className="px-4 pt-2 pb-1 text-xs font-medium tracking-wider uppercase"
                 style={{ color: "var(--text-muted)" }}>
-                {query.length === 0 ? "Popular" : "Results"}
+                {query.length === 0 ? "Popular" : "Stocks"}
               </p>
-              {suggestions.slice(0, 8).map((s) => (
+              {suggestions.slice(0, query.length > 0 && userResults.length > 0 ? 5 : 8).map((s) => (
                 <button key={s.symbol} type="button" onMouseDown={() => navigate(s.symbol, s.name)}
                   className="w-full flex items-center justify-between px-4 py-2.5 text-left transition-colors"
                   style={{ backgroundColor: "transparent" }}
@@ -251,6 +259,46 @@ export default function StockSearch({
                     </span>
                   </div>
                   <ArrowRight size={12} style={{ color: "var(--text-muted)" }} />
+                </button>
+              ))}
+            </>
+          )}
+
+          {/* People */}
+          {query.length >= 2 && userResults.length > 0 && (
+            <>
+              <div className="mx-4 my-1" style={{ height: "1px", backgroundColor: "var(--border)" }} />
+              <p className="px-4 pt-2 pb-1 text-xs font-medium tracking-wider uppercase"
+                style={{ color: "var(--text-muted)" }}>
+                People
+              </p>
+              {userResults.map((u) => (
+                <button key={u.user_id} type="button" onMouseDown={() => navigateToProfile(u.user_id)}
+                  className="w-full flex items-center justify-between px-4 py-2.5 text-left transition-colors"
+                  style={{ backgroundColor: "transparent" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--bg-subtle)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 overflow-hidden"
+                      style={{
+                        backgroundColor: `${u.avatar_color}20`,
+                        color: u.avatar_color,
+                        border: `1px solid ${u.avatar_color}40`,
+                      }}
+                    >
+                      {u.avatar_url ? (
+                        <img src={u.avatar_url} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        u.display_name[0]?.toUpperCase()
+                      )}
+                    </div>
+                    <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+                      {u.display_name}
+                    </span>
+                  </div>
+                  <User size={12} style={{ color: "var(--text-muted)" }} />
                 </button>
               ))}
             </>

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { LogOut, LogIn } from "lucide-react";
+import { LogOut, LogIn, Sun, Moon } from "lucide-react";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { useStore } from "@/lib/store";
@@ -15,7 +15,9 @@ export default function Navbar() {
   const router    = useRouter();
   const user      = useStore((s) => s.user);
   const clearKeys = useStore((s) => s.clearApiKeys);
-  const clearChat = useStore((s) => s.clearChat);
+  const clearChat    = useStore((s) => s.clearChat);
+  const theme        = useStore((s) => s.theme);
+  const toggleTheme  = useStore((s) => s.toggleTheme);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 10);
@@ -39,11 +41,9 @@ export default function Navbar() {
     <nav
       className="fixed top-0 left-0 right-0 z-50 transition-all duration-300"
       style={{
-        backgroundColor: scrolled
-          ? "rgba(8, 12, 20, 0.92)"
-          : "rgba(8, 12, 20, 0.6)",
+        backgroundColor: `color-mix(in srgb, var(--bg-base) ${scrolled ? "92%" : "60%"}, transparent)`,
         backdropFilter: "blur(16px)",
-        borderBottom: "1px solid rgba(255,255,255,0.06)",
+        borderBottom: "1px solid var(--border)",
       }}
     >
       <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
@@ -59,6 +59,15 @@ export default function Navbar() {
             <NavLink href="/portfolio"  active={pathname === "/portfolio"}>Portfolio</NavLink>
             <NavLink href="/settings"   active={pathname === "/settings"}>Settings</NavLink>
           </div>
+
+          <button
+            onClick={toggleTheme}
+            className="p-2 rounded-lg transition-colors hover:bg-bg-subtle/60"
+            style={{ color: "var(--text-secondary)" }}
+            title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
+          </button>
 
           {user ? (
             /* Authenticated: avatar (links to profile) + sign-out */

@@ -5,13 +5,15 @@ import Link from "next/link";
 import {
   Eye, EyeOff, CheckCircle2, XCircle, KeyRound,
   Trash2, ExternalLink, ShieldCheck, Zap, ArrowLeft,
-  Loader2, ChevronRight, Cloud, CloudOff,
+  Loader2, ChevronRight, Cloud, CloudOff, Bell, Volume2,
 } from "lucide-react";
 import Navbar from "@/components/layout/Navbar";
 import { useStore } from "@/lib/store";
 import { PROVIDERS } from "@/lib/types";
 import type { AIProvider } from "@/lib/types";
 import { testProviderKey, listSavedKeys, saveKey, deleteKey } from "@/lib/api";
+import { useNotificationSettings } from "@/hooks/useNotificationSettings";
+import { playSound } from "@/lib/sounds";
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
 
@@ -58,7 +60,7 @@ function ToastList({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id: num
 
 const PROVIDER_DETAILS: Record<AIProvider, {
   tagline: string;
-  freeTier: string;
+  freeTier: string | null;
   logo: string;
   models: string[];
 }> = {
@@ -66,25 +68,25 @@ const PROVIDER_DETAILS: Record<AIProvider, {
     tagline: "Fastest inference in the west. Truly free.",
     freeTier: "14,400 requests / day free — no card required",
     logo: "G",
-    models: ["Llama 3.3 70B", "Llama 3.1 8B", "Mixtral 8×7B"],
+    models: ["Llama 3.3 70B", "Llama 3.1 8B", "Mixtral 8x7B"],
   },
   openai: {
     tagline: "Most capable reasoning. GPT-4o family.",
-    freeTier: "$5 free credit for new accounts",
+    freeTier: null,
     logo: "○",
     models: ["GPT-4o Mini", "GPT-4o", "GPT-4 Turbo"],
   },
   anthropic: {
     tagline: "Precise, nuanced analysis. Long context.",
-    freeTier: "$5 free credit for new accounts",
+    freeTier: null,
     logo: "A",
-    models: ["Claude 3.5 Haiku", "Claude 3.5 Sonnet", "Claude 3 Opus"],
+    models: ["Claude Haiku 4.5", "Claude Sonnet 4.6", "Claude Opus 4.6"],
   },
   gemini: {
-    tagline: "Google's multimodal model. Very generous free tier.",
-    freeTier: "1,500 requests / day free via AI Studio",
+    tagline: "Google's multimodal model.",
+    freeTier: null,
     logo: "◈",
-    models: ["Gemini 1.5 Flash", "Gemini 1.5 Pro", "Gemini 2.0 Flash"],
+    models: ["Gemini 2.5 Flash", "Gemini 2.5 Pro", "Gemini 2.0 Flash Lite"],
   },
 };
 
@@ -399,7 +401,7 @@ function ProviderCard({ id, isLoggedIn, onToast }: ProviderCardProps) {
           )}
         </div>
 
-        {/* Free tier info */}
+        {/* Free tier / Get key link */}
         <div
           className="flex items-center gap-2 px-3 py-2.5 rounded-lg"
           style={{
@@ -410,7 +412,7 @@ function ProviderCard({ id, isLoggedIn, onToast }: ProviderCardProps) {
           <Zap size={12} style={{ color: info.color }} className="shrink-0" />
           <div className="flex-1 min-w-0">
             <span className="text-xs" style={{ color: info.color }}>
-              Free tier: {details.freeTier}
+              {details.freeTier ? `Free tier: ${details.freeTier}` : "Paid API key required"}
             </span>
           </div>
           <a
@@ -420,7 +422,7 @@ function ProviderCard({ id, isLoggedIn, onToast }: ProviderCardProps) {
             className="flex items-center gap-1 text-xs shrink-0 ml-2 hover:underline"
             style={{ color: info.color }}
           >
-            Get started <ChevronRight size={11} />
+            Get key <ChevronRight size={11} />
           </a>
         </div>
 
@@ -439,6 +441,164 @@ function ProviderCard({ id, isLoggedIn, onToast }: ProviderCardProps) {
               {m}
             </span>
           ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Notification settings section ─────────────────────────────────────────────
+
+const SOUNDS = ["default", "chime", "bell", "none"];
+
+function NotificationSection() {
+  const { settings, update } = useNotificationSettings();
+  const theme = useStore((s) => s.theme);
+
+  return (
+    <div
+      className="rounded-2xl overflow-hidden mb-8"
+      style={{ backgroundColor: "var(--bg-surface)", border: "1px solid var(--border)" }}
+    >
+      <div className="px-6 py-5" style={{ borderBottom: "1px solid var(--border)" }}>
+        <div className="flex items-center gap-2">
+          <Bell size={16} style={{ color: "var(--accent-blue)" }} />
+          <h2 className="font-semibold text-base" style={{ color: "var(--text-primary)" }}>
+            Notifications
+          </h2>
+        </div>
+        <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
+          Control when and how you receive alert notifications.
+        </p>
+      </div>
+
+      <div className="px-6 py-5 space-y-5">
+        {/* Quiet Hours */}
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>Quiet Hours</p>
+            <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+              Suppress notifications during specific hours.
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              const enabling = !settings.quiet_hours_enabled;
+              if (enabling) {
+                update({
+                  quiet_hours_enabled: true,
+                  quiet_start: settings.quiet_start ?? "22:00",
+                  quiet_end: settings.quiet_end ?? "08:00",
+                });
+              } else {
+                update({ quiet_hours_enabled: false });
+              }
+            }}
+            className="w-10 h-6 rounded-full transition-colors shrink-0 relative"
+            style={{
+              backgroundColor: settings.quiet_hours_enabled ? "var(--accent-green)" : "var(--bg-elevated)",
+              border: `1px solid ${settings.quiet_hours_enabled ? "var(--accent-green)" : "var(--border-bright)"}`,
+            }}
+          >
+            <span
+              className="absolute top-0.5 w-4 h-4 rounded-full transition-all"
+              style={{
+                backgroundColor: settings.quiet_hours_enabled ? "#fff" : "var(--text-muted)",
+                left: settings.quiet_hours_enabled ? "calc(100% - 20px)" : "2px",
+              }}
+            />
+          </button>
+        </div>
+
+        {settings.quiet_hours_enabled && (
+          <div className="flex items-center gap-3 pl-4">
+            <label className="text-xs" style={{ color: "var(--text-muted)" }}>From</label>
+            <input
+              type="time"
+              value={settings.quiet_start ?? "22:00"}
+              onChange={(e) => update({ quiet_start: e.target.value })}
+              className="px-2 py-1.5 rounded-lg text-xs font-mono"
+              style={{
+                backgroundColor: "var(--bg-elevated)",
+                border: "1px solid var(--border)",
+                color: "var(--text-primary)",
+                colorScheme: theme,
+              }}
+            />
+            <label className="text-xs" style={{ color: "var(--text-muted)" }}>To</label>
+            <input
+              type="time"
+              value={settings.quiet_end ?? "08:00"}
+              onChange={(e) => update({ quiet_end: e.target.value })}
+              className="px-2 py-1.5 rounded-lg text-xs font-mono"
+              style={{
+                backgroundColor: "var(--bg-elevated)",
+                border: "1px solid var(--border)",
+                color: "var(--text-primary)",
+                colorScheme: theme,
+              }}
+            />
+          </div>
+        )}
+
+        {/* Group notifications */}
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>Group Notifications</p>
+            <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+              Batch multiple alerts into a single notification.
+            </p>
+          </div>
+          <button
+            onClick={() => update({ group_notifications: !settings.group_notifications })}
+            className="w-10 h-6 rounded-full transition-colors shrink-0 relative"
+            style={{
+              backgroundColor: settings.group_notifications ? "var(--accent-green)" : "var(--bg-elevated)",
+              border: `1px solid ${settings.group_notifications ? "var(--accent-green)" : "var(--border-bright)"}`,
+            }}
+          >
+            <span
+              className="absolute top-0.5 w-4 h-4 rounded-full transition-all"
+              style={{
+                backgroundColor: settings.group_notifications ? "#fff" : "var(--text-muted)",
+                left: settings.group_notifications ? "calc(100% - 20px)" : "2px",
+              }}
+            />
+          </button>
+        </div>
+
+        {/* Sound */}
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>Alert Sound</p>
+            <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+              Sound played when an alert triggers.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => playSound(settings.sound)}
+              className="p-1.5 rounded-lg transition-colors"
+              style={{ color: "var(--text-muted)", border: "1px solid var(--border)" }}
+              title="Preview sound"
+            >
+              <Volume2 size={13} />
+            </button>
+            <select
+              value={settings.sound}
+              onChange={(e) => { update({ sound: e.target.value }); playSound(e.target.value); }}
+              className="px-2 py-1.5 rounded-lg text-xs"
+              style={{
+                backgroundColor: "var(--bg-elevated)",
+                border: "1px solid var(--border)",
+                color: "var(--text-primary)",
+              }}
+            >
+              {SOUNDS.map((s) => (
+                <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
     </div>
@@ -581,6 +741,9 @@ export default function SettingsPage() {
             <ProviderCard key={id} id={id} isLoggedIn={isLoggedIn} onToast={pushToast} />
           ))}
         </div>
+
+        {/* ── Notification settings ──────────────────────────────────── */}
+        {isLoggedIn && <NotificationSection />}
 
         {/* ── Security note ───────────────────────────────────────────── */}
         <div

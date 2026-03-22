@@ -3,10 +3,14 @@
 import {
   useState, useRef, useEffect, useCallback,
 } from "react";
-import { Send, Square, Trash2, Bot } from "lucide-react";
+import { Send, Square, Plus, Bot, History, ChevronDown, X } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { streamAnalysis } from "@/lib/api";
-import type { AIProvider } from "@/lib/types";
+import {
+  streamAnalysis,
+  getConversations, createConversation, getConversationMessages,
+  addConversationMessage, deleteConversation,
+} from "@/lib/api";
+import type { AIProvider, Conversation } from "@/lib/types";
 import type { ChatMessage } from "@/lib/types";
 import ChatMessageComponent from "./ChatMessage";
 import ProviderSelector from "./ProviderSelector";
@@ -29,12 +33,16 @@ export default function ChatInterface({ symbol }: Props) {
     chatHistory, addMessage, updateLastMessage, clearChat,
     activeProvider, apiKeys, savedProviders,
     isChatStreaming, setIsChatStreaming,
+    user, activeConversationId, setActiveConversationId,
   } = useStore();
 
   const [input,  setInput]  = useState("");
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
   const abortRef            = useRef<AbortController | null>(null);
   const bottomRef           = useRef<HTMLDivElement>(null);
   const textareaRef         = useRef<HTMLTextAreaElement>(null);
+  const historyRef          = useRef<HTMLDivElement>(null);
 
   // Auto-scroll on new messages
   useEffect(() => {
@@ -45,22 +53,83 @@ export default function ChatInterface({ symbol }: Props) {
   const loadApiKeysFromSession = useStore((s) => s.loadApiKeysFromSession);
   useEffect(() => { loadApiKeysFromSession(); }, []);
 
+  // Clear chat and load most recent conversation for this symbol
+  const prevSymbolRef = useRef(symbol);
+  useEffect(() => {
+    if (prevSymbolRef.current !== symbol) {
+      clearChat();
+      setActiveConversationId(null);
+      prevSymbolRef.current = symbol;
+    }
+
+    if (!user) return;
+    getConversations()
+      .then((convos) => {
+        setConversations(convos);
+        const match = convos.find((c) => c.symbol === symbol);
+        if (!match) { setActiveConversationId(null); return; }
+        setActiveConversationId(match.id);
+        return getConversationMessages(match.id);
+      })
+      .then((msgs) => {
+        if (!msgs?.length) return;
+        clearChat();
+        for (const m of msgs) {
+          addMessage({
+            id: nanoid(),
+            role: m.role as "user" | "assistant",
+            content: m.content,
+            symbol,
+            timestamp: new Date(m.created_at),
+          });
+        }
+      })
+      .catch(() => {});
+  }, [user, symbol]);
+
+  // Close history dropdown on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (historyRef.current && !historyRef.current.contains(e.target as Node)) {
+        setShowHistory(false);
+      }
+    }
+    if (showHistory) document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [showHistory]);
+
+  const symbolConversations = conversations.filter((c) => c.symbol === symbol);
+
   const activeKey       = apiKeys[activeProvider];
-  // Key is available either locally (session) or saved to account in Supabase
   const hasCloudKey     = savedProviders.includes(activeProvider as AIProvider);
   const hasKey          = Boolean(activeKey) || hasCloudKey;
 
+  const persistMessages = useCallback(async (userText: string, assistantText: string) => {
+    if (!user) return;
+    try {
+      let convId = useStore.getState().activeConversationId;
+      if (!convId) {
+        const title = userText.slice(0, 50) + (userText.length > 50 ? "..." : "");
+        const conv = await createConversation(symbol, title);
+        convId = conv.id;
+        setActiveConversationId(convId);
+        setConversations((prev) => [conv, ...prev]);
+      }
+      await addConversationMessage(convId, "user", userText);
+      await addConversationMessage(convId, "assistant", assistantText);
+    } catch {}
+  }, [user, symbol, setActiveConversationId]);
+
   const sendMessage = useCallback(async (text: string) => {
     if (!text.trim() || isChatStreaming) return;
+    const trimmed = text.trim();
 
-    // User message
     addMessage({
-      id: nanoid(), role: "user", content: text.trim(),
+      id: nanoid(), role: "user", content: trimmed,
       symbol, timestamp: new Date(),
     });
     setInput("");
 
-    // Empty assistant message placeholder
     const assistantId = nanoid();
     const placeholder: ChatMessage = {
       id: assistantId, role: "assistant", content: "",
@@ -71,7 +140,7 @@ export default function ChatInterface({ symbol }: Props) {
 
     if (!hasKey) {
       updateLastMessage(
-        "⚠️ No API key set for the selected provider. Go to **Settings** to add one.",
+        "No API key set for the selected provider. Go to **Settings** to add one.",
         false
       );
       setIsChatStreaming(false);
@@ -80,14 +149,13 @@ export default function ChatInterface({ symbol }: Props) {
 
     let accumulated = "";
 
-    // Build history from all completed messages (exclude the new streaming placeholder)
     const history = useStore.getState().chatHistory
       .filter((m) => !m.isStreaming && m.content.trim())
       .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
 
     abortRef.current = streamAnalysis({
       symbol,
-      question: text.trim(),
+      question: trimmed,
       provider: activeProvider,
       apiKey:   activeKey,
       history,
@@ -98,15 +166,16 @@ export default function ChatInterface({ symbol }: Props) {
       onDone: () => {
         updateLastMessage(accumulated, false);
         setIsChatStreaming(false);
+        persistMessages(trimmed, accumulated);
       },
       onError: (msg) => {
-        updateLastMessage(`❌ Error: ${msg}`, false);
+        updateLastMessage(`Error: ${msg}`, false);
         setIsChatStreaming(false);
       },
     });
   }, [
     isChatStreaming, addMessage, updateLastMessage, setIsChatStreaming,
-    symbol, activeProvider, activeKey, hasKey,
+    symbol, activeProvider, activeKey, hasKey, persistMessages,
   ]);
 
   const handleStop = () => {
@@ -116,6 +185,34 @@ export default function ChatInterface({ symbol }: Props) {
       false
     );
     setIsChatStreaming(false);
+  };
+
+  const loadConversation = async (conv: Conversation) => {
+    setShowHistory(false);
+    clearChat();
+    setActiveConversationId(conv.id);
+    try {
+      const msgs = await getConversationMessages(conv.id);
+      for (const m of msgs) {
+        addMessage({
+          id: nanoid(),
+          role: m.role as "user" | "assistant",
+          content: m.content,
+          symbol: conv.symbol ?? symbol,
+          timestamp: new Date(m.created_at),
+        });
+      }
+    } catch {}
+  };
+
+  const handleDeleteConversation = async (convId: number) => {
+    try {
+      await deleteConversation(convId);
+      setConversations((prev) => prev.filter((c) => c.id !== convId));
+      if (activeConversationId === convId) {
+        clearChat();
+      }
+    } catch {}
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -159,13 +256,70 @@ export default function ChatInterface({ symbol }: Props) {
             </span>
           </div>
         </div>
-        <button
-          onClick={clearChat}
-          className="p-1.5 rounded-lg transition-colors hover:bg-bg-elevated"
-          title="Clear chat"
-        >
-          <Trash2 size={13} style={{ color: "var(--text-muted)" }} />
-        </button>
+        <div className="flex items-center gap-1">
+          {user && symbolConversations.length > 0 && (
+            <div className="relative" ref={historyRef}>
+              <button
+                onClick={() => setShowHistory((v) => !v)}
+                className="p-1.5 rounded-lg transition-colors flex items-center gap-1"
+                style={{ color: "var(--text-muted)" }}
+                title="Chat history"
+              >
+                <History size={13} />
+                <ChevronDown size={10} />
+              </button>
+              {showHistory && (
+                <div
+                  className="absolute right-0 top-full mt-1 w-64 rounded-xl overflow-hidden shadow-xl z-50"
+                  style={{
+                    backgroundColor: "var(--bg-elevated)",
+                    border: "1px solid var(--border-bright)",
+                  }}
+                >
+                  <div className="px-3 py-2" style={{ borderBottom: "1px solid var(--border)" }}>
+                    <p className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>
+                      {symbol} Conversations
+                    </p>
+                  </div>
+                  <div className="max-h-60 overflow-y-auto">
+                    {symbolConversations.map((c) => (
+                      <div
+                        key={c.id}
+                        className="flex items-center gap-2 px-3 py-2 cursor-pointer transition-colors group"
+                        style={{
+                          backgroundColor: c.id === activeConversationId ? "var(--bg-subtle)" : "transparent",
+                        }}
+                        onClick={() => loadConversation(c)}
+                        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--bg-subtle)")}
+                        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = c.id === activeConversationId ? "var(--bg-subtle)" : "transparent")}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs truncate" style={{ color: "var(--text-primary)" }}>
+                            {c.title ?? "Untitled"}
+                          </p>
+                        </div>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDeleteConversation(c.id); }}
+                          className="opacity-0 group-hover:opacity-100 p-1 rounded transition-opacity"
+                          style={{ color: "var(--text-muted)" }}
+                        >
+                          <X size={11} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          <button
+            onClick={() => { clearChat(); setActiveConversationId(null); }}
+            className="p-1.5 rounded-lg transition-colors hover:bg-bg-elevated"
+            title="New chat"
+          >
+            <Plus size={13} style={{ color: "var(--text-muted)" }} />
+          </button>
+        </div>
       </div>
 
       {/* Provider selector */}

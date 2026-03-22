@@ -50,6 +50,63 @@
   --border-bright:  rgba(255,255,255,0.12);
 }
 
+/* ── Light theme override ────────────────────────────────────────────────── */
+[data-theme="light"] {
+  --bg-base:        #F8FAFC;
+  --bg-surface:     #FFFFFF;
+  --bg-elevated:    #F1F5F9;
+  --bg-subtle:      #E2E8F0;
+
+  --accent-green:   #16A34A;
+  --accent-red:     #DC2626;
+  --accent-blue:    #2563EB;
+  --accent-amber:   #D97706;
+
+  --text-primary:   #0F172A;
+  --text-secondary: #475569;
+  --text-muted:     #94A3B8;
+
+  --border:         rgba(0,0,0,0.06);
+  --border-bright:  rgba(0,0,0,0.12);
+
+  --color-bg-base:        #F8FAFC;
+  --color-bg-surface:     #FFFFFF;
+  --color-bg-elevated:    #F1F5F9;
+  --color-bg-subtle:      #E2E8F0;
+
+  --color-accent-green:   #16A34A;
+  --color-accent-red:     #DC2626;
+  --color-accent-blue:    #2563EB;
+  --color-accent-amber:   #D97706;
+
+  --color-text-primary:   #0F172A;
+  --color-text-secondary: #475569;
+  --color-text-muted:     #94A3B8;
+
+  --color-border:         rgba(0,0,0,0.06);
+  --color-border-bright:  rgba(0,0,0,0.12);
+
+  color-scheme: light;
+}
+
+[data-theme="light"] .glass-card {
+  background: linear-gradient(135deg, var(--bg-surface) 0%, rgba(241,245,249,0) 100%);
+}
+
+[data-theme="light"] .dot-grid {
+  background-image: radial-gradient(circle, rgba(0,0,0,0.06) 1px, transparent 1px);
+}
+
+[data-theme="light"] ::-webkit-scrollbar-track {
+  background: var(--bg-surface);
+}
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: var(--bg-subtle);
+}
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
 /* ── Base resets ─────────────────────────────────────────────────────────── */
 *, *::before, *::after {
   box-sizing: border-box;

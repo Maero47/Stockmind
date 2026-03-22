@@ -6,7 +6,7 @@ import { X, Eye, EyeOff, ExternalLink, ShieldCheck, Cloud, Loader2 } from "lucid
 import { useStore } from "@/lib/store";
 import { PROVIDERS } from "@/lib/types";
 import type { AIProvider } from "@/lib/types";
-import { saveKey } from "@/lib/api";
+import { saveKey, testProviderKey } from "@/lib/api";
 
 interface Props {
   provider: AIProvider;
@@ -23,25 +23,33 @@ export default function ApiKeyModal({ provider, onClose }: Props) {
 
   const [value,   setValue]   = useState(existing ?? "");
   const [visible, setVisible] = useState(false);
+  const [testing, setTesting] = useState(false);
   const [saving,  setSaving]  = useState(false);
   const [saved,   setSaved]   = useState(false);
+  const [error,   setError]   = useState("");
 
   const handleSave = async () => {
     const key = value.trim();
     if (!key) return;
 
+    setError("");
+    setTesting(true);
+    const result = await testProviderKey(provider, key);
+    setTesting(false);
+
+    if (!result.ok) {
+      setError(result.error ?? "Invalid key");
+      return;
+    }
+
     setSaving(true);
-    // Always save to sessionStorage
     setApiKey(provider, key);
 
-    // Also save to Supabase if logged in
     if (isLoggedIn) {
       try {
         await saveKey(provider, key);
         addSavedProvider(provider);
-      } catch {
-        // sessionStorage save still worked, so proceed
-      }
+      } catch {}
     }
 
     setSaving(false);
@@ -121,7 +129,7 @@ export default function ApiKeyModal({ provider, onClose }: Props) {
           }}
         >
           <span className="text-xs" style={{ color: "var(--accent-blue)" }}>
-            Get your free {info.name} key →
+            Get your {info.name} API key →
           </span>
           <ExternalLink size={11} style={{ color: "var(--accent-blue)" }} className="opacity-60 group-hover:opacity-100" />
         </a>
@@ -146,6 +154,19 @@ export default function ApiKeyModal({ provider, onClose }: Props) {
           </p>
         </div>
 
+        {/* Error message */}
+        {error && (
+          <div
+            className="flex items-center gap-2 p-3 rounded-lg mb-4"
+            style={{
+              backgroundColor: "rgba(255,61,87,0.06)",
+              border: "1px solid rgba(255,61,87,0.18)",
+            }}
+          >
+            <p className="text-xs" style={{ color: "var(--accent-red)" }}>{error}</p>
+          </div>
+        )}
+
         {/* Actions */}
         <div className="flex gap-3">
           <button
@@ -157,17 +178,17 @@ export default function ApiKeyModal({ provider, onClose }: Props) {
           </button>
           <button
             onClick={handleSave}
-            disabled={!value.trim() || saving}
+            disabled={!value.trim() || testing || saving}
             className="flex-1 py-2.5 rounded-lg text-sm font-medium transition-all disabled:opacity-40 flex items-center justify-center gap-2"
             style={{
               backgroundColor: saved ? "rgba(0,230,118,0.15)" : "var(--accent-green)",
               color:           saved ? "var(--accent-green)" : "#080C14",
             }}
           >
-            {saving ? <><Loader2 size={13} className="animate-spin" /> Saving…</>
-             : saved ? "✓ Saved!"
-             : isLoggedIn ? "Save to Account"
-             : "Save Key"}
+            {testing ? <><Loader2 size={13} className="animate-spin" /> Testing...</>
+             : saving ? <><Loader2 size={13} className="animate-spin" /> Saving...</>
+             : saved ? "Saved!"
+             : "Test & Save"}
           </button>
         </div>
       </div>

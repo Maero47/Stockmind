@@ -333,6 +333,13 @@ export async function removeFromWatchlist(symbol: string) {
   return apiFetch<void>(`/api/watchlist/${encodeURIComponent(symbol)}`, { method: "DELETE" });
 }
 
+export async function reorderWatchlist(symbols: string[]) {
+  return apiFetch<{ ok: boolean }>("/api/watchlist/reorder", {
+    method: "PUT",
+    body: JSON.stringify({ symbols }),
+  });
+}
+
 // ── Alerts ────────────────────────────────────────────────────────────────────
 
 export async function getAlerts() {
@@ -383,6 +390,47 @@ export async function updatePosition(id: number, data: {
 
 export async function deletePosition(id: number) {
   return apiFetch<void>(`/api/portfolio/${id}`, { method: "DELETE" });
+}
+
+// ── Chat Persistence ─────────────────────────────────────────────────────────
+
+export async function getConversations() {
+  return apiFetch<import("./types").Conversation[]>("/api/chat/conversations");
+}
+
+export async function createConversation(symbol: string | null, title: string | null) {
+  return apiFetch<import("./types").Conversation>("/api/chat/conversations", {
+    method: "POST",
+    body: JSON.stringify({ symbol, title }),
+  });
+}
+
+export async function getConversationMessages(conversationId: number) {
+  return apiFetch<import("./types").ChatMessageRecord[]>(`/api/chat/conversations/${conversationId}/messages`);
+}
+
+export async function addConversationMessage(conversationId: number, role: string, content: string) {
+  return apiFetch<import("./types").ChatMessageRecord>(`/api/chat/conversations/${conversationId}/messages`, {
+    method: "POST",
+    body: JSON.stringify({ role, content }),
+  });
+}
+
+export async function deleteConversation(conversationId: number) {
+  return apiFetch<void>(`/api/chat/conversations/${conversationId}`, { method: "DELETE" });
+}
+
+// ── Notification Settings ────────────────────────────────────────────────────
+
+export async function getNotificationSettings() {
+  return apiFetch<import("./types").NotificationSettings>("/api/notifications/settings");
+}
+
+export async function updateNotificationSettings(settings: Partial<import("./types").NotificationSettings>) {
+  return apiFetch<import("./types").NotificationSettings>("/api/notifications/settings", {
+    method: "PUT",
+    body: JSON.stringify(settings),
+  });
 }
 
 // ── Health ────────────────────────────────────────────────────────────────────

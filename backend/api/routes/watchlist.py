@@ -17,6 +17,10 @@ class AddSymbolRequest(BaseModel):
     symbol: str
 
 
+class ReorderRequest(BaseModel):
+    symbols: list[str]
+
+
 @router.get("", response_model=list[WatchlistItemResponse])
 async def get_watchlist(
     user: dict = Depends(get_current_user),
@@ -34,6 +38,16 @@ async def add_to_watchlist(
 ):
     await crud.add_to_watchlist(db, user["user_id"], body.symbol)
     return {"symbol": body.symbol.upper()}
+
+
+@router.put("/reorder", status_code=200)
+async def reorder_watchlist(
+    body: ReorderRequest,
+    user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await crud.reorder_watchlist(db, user["user_id"], body.symbols)
+    return {"ok": True}
 
 
 @router.delete("/{symbol}", status_code=204)

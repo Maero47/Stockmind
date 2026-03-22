@@ -14,6 +14,7 @@ import {
 import { Maximize2, X, TrendingUp, BarChart2, Minus as MinusIcon, Trash2, Download, CandlestickChart as CandleIcon } from "lucide-react";
 import type { OHLCVBar, TimePeriod, TimeInterval } from "@/lib/types";
 import { useHistory } from "@/hooks/useStockData";
+import { useStore } from "@/lib/store";
 
 // ── Period config ─────────────────────────────────────────────────────────────
 
@@ -60,11 +61,25 @@ function toChartTime(ts: string, isDaily: boolean): any {
 
 // ── Theme ─────────────────────────────────────────────────────────────────────
 
-const T = {
-  bg:    "#0D1117",
-  grid:  "rgba(255,255,255,0.04)",
-  text:  "#8B949E",
-  border:"rgba(255,255,255,0.08)",
+function getTheme() {
+  if (typeof window === "undefined") return {
+    bg: "#0D1117", grid: "rgba(255,255,255,0.04)", text: "#8B949E",
+    border: "rgba(255,255,255,0.08)", crosshairBg: "#1F2937",
+    crosshairLine: "rgba(255,255,255,0.2)", volBase: "rgba(255,255,255,0.08)",
+  };
+  const isLight = document.documentElement.getAttribute("data-theme") === "light";
+  return isLight ? {
+    bg: "#FFFFFF", grid: "rgba(0,0,0,0.04)", text: "#64748B",
+    border: "rgba(0,0,0,0.08)", crosshairBg: "#E2E8F0",
+    crosshairLine: "rgba(0,0,0,0.2)", volBase: "rgba(0,0,0,0.06)",
+  } : {
+    bg: "#0D1117", grid: "rgba(255,255,255,0.04)", text: "#8B949E",
+    border: "rgba(255,255,255,0.08)", crosshairBg: "#1F2937",
+    crosshairLine: "rgba(255,255,255,0.2)", volBase: "rgba(255,255,255,0.08)",
+  };
+}
+
+const T_COLORS = {
   green: "#00E676",
   red:   "#FF3D57",
   ema9:  "#2979FF",
@@ -90,6 +105,7 @@ function useChart(
   chartType:    ChartType,
   interval:     TimeInterval,
   period:       TimePeriod,
+  themeKey?:    string,
 ): React.RefObject<IChartApi | null> {
   const chart = useRef<IChartApi | null>(null);
 
@@ -111,6 +127,7 @@ function useChart(
     // Fresh chart every render — eliminates stale series state
     if (chart.current) { chart.current.remove(); chart.current = null; }
 
+    const T = getTheme();
     const c = createChart(el, {
       autoSize: true,
       height,
@@ -121,8 +138,8 @@ function useChart(
       grid: { vertLines: { color: T.grid }, horzLines: { color: T.grid } },
       crosshair: {
         mode: CrosshairMode.Normal,
-        vertLine: { color: "rgba(255,255,255,0.2)", labelBackgroundColor: "#1F2937" },
-        horzLine: { color: "rgba(255,255,255,0.2)", labelBackgroundColor: "#1F2937" },
+        vertLine: { color: T.crosshairLine, labelBackgroundColor: T.crosshairBg },
+        horzLine: { color: T.crosshairLine, labelBackgroundColor: T.crosshairBg },
       },
       rightPriceScale: { borderColor: T.border, scaleMargins: { top: 0.08, bottom: 0.22 } },
       timeScale: {
@@ -134,7 +151,7 @@ function useChart(
 
     // Volume
     const volS = c.addSeries(HistogramSeries, {
-      color: "rgba(255,255,255,0.08)", priceFormat: { type: "volume" }, priceScaleId: "vol",
+      color: T.volBase, priceFormat: { type: "volume" }, priceScaleId: "vol",
     });
     c.priceScale("vol").applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
     volS.setData(
@@ -147,16 +164,16 @@ function useChart(
     // Main price series
     if (chartType === "candlestick") {
       const s = c.addSeries(CandlestickSeries, {
-        upColor: T.green, downColor: T.red,
-        borderUpColor: T.green, borderDownColor: T.red,
-        wickUpColor: T.green, wickDownColor: T.red,
+        upColor: T_COLORS.green, downColor: T_COLORS.red,
+        borderUpColor: T_COLORS.green, borderDownColor: T_COLORS.red,
+        wickUpColor: T_COLORS.green, wickDownColor: T_COLORS.red,
       });
       s.setData(validBars.map((b) => ({
         time: t(b.timestamp), open: b.open, high: b.high, low: b.low, close: b.close,
       })));
     } else {
       const s = c.addSeries(LineSeries, {
-        color: T.green, lineWidth: 2, priceLineVisible: false, lastValueVisible: true,
+        color: T_COLORS.green, lineWidth: 2, priceLineVisible: false, lastValueVisible: true,
       });
       s.setData(validBars.map((b) => ({ time: t(b.timestamp), value: b.close })));
     }
@@ -173,13 +190,13 @@ function useChart(
     if (overlays.has("EMA9")) {
       const d = ovData(calcEMA(closes, 9));
       if (d.length) {
-        c.addSeries(LineSeries, { color: T.ema9, lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData(d);
+        c.addSeries(LineSeries, { color: T_COLORS.ema9, lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData(d);
       }
     }
     if (overlays.has("EMA21")) {
       const d = ovData(calcEMA(closes, 21));
       if (d.length) {
-        c.addSeries(LineSeries, { color: T.ema21, lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData(d);
+        c.addSeries(LineSeries, { color: T_COLORS.ema21, lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData(d);
       }
     }
     if (overlays.has("BB")) {
@@ -188,8 +205,8 @@ function useChart(
       const lo = ovData(bb.map((b) => b.lower));
       const md = ovData(bb.map((b) => b.middle));
       if (up.length) {
-        c.addSeries(LineSeries, { color: T.bb, lineWidth: 1, lineStyle: LineStyle.Dashed, priceLineVisible: false, lastValueVisible: false }).setData(up);
-        c.addSeries(LineSeries, { color: T.bb, lineWidth: 1, lineStyle: LineStyle.Dashed, priceLineVisible: false, lastValueVisible: false }).setData(lo);
+        c.addSeries(LineSeries, { color: T_COLORS.bb, lineWidth: 1, lineStyle: LineStyle.Dashed, priceLineVisible: false, lastValueVisible: false }).setData(up);
+        c.addSeries(LineSeries, { color: T_COLORS.bb, lineWidth: 1, lineStyle: LineStyle.Dashed, priceLineVisible: false, lastValueVisible: false }).setData(lo);
         c.addSeries(LineSeries, { color: "rgba(156,39,176,0.4)", lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData(md);
       }
     }
@@ -216,7 +233,7 @@ function useChart(
     }
 
     return () => { c.remove(); chart.current = null; };
-  }, [bars, chartType, overlays, interval, period, height, containerRef]);
+  }, [bars, chartType, overlays, interval, period, height, containerRef, themeKey]);
 
   return chart;
 }
@@ -248,7 +265,7 @@ function Controls({
             className="px-3 py-2 sm:px-2.5 sm:py-1 rounded text-xs font-mono font-medium transition-all min-w-[40px] sm:min-w-0"
             style={{
               backgroundColor: i === periodIdx && !showCustom ? "var(--accent-green)" : "transparent",
-              color:  i === periodIdx && !showCustom ? "#080C14" : "var(--text-secondary)",
+              color:  i === periodIdx && !showCustom ? "var(--bg-base)" : "var(--text-secondary)",
               border: i === periodIdx && !showCustom ? "none" : "1px solid var(--border)",
             }}>
             {label}
@@ -458,6 +475,7 @@ function FullscreenChart({ symbol, onClose }: { symbol: string; onClose: () => v
   const [showCustom,  setShowCustom]  = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const wrapRef      = useRef<HTMLDivElement>(null);
+  const theme = useStore((s) => s.theme);
 
   const { period, interval, fetch: fetchPeriod } = PERIODS[periodIdx];
   const useStart = showCustom && customStart ? customStart : undefined;
@@ -470,7 +488,7 @@ function FullscreenChart({ symbol, onClose }: { symbol: string; onClose: () => v
     setOverlays((p) => { const s = new Set(p); s.has(o) ? s.delete(o) : s.add(o); return s; }), []);
 
   const chartH = typeof window !== "undefined" ? Math.floor(window.innerHeight * 0.72) : 600;
-  const chartRef = useChart(containerRef, chartH, bars, overlays, chartType, interval, period);
+  const chartRef = useChart(containerRef, chartH, bars, overlays, chartType, interval, period, theme);
 
   const handleExport = useCallback(() => {
     const canvas = chartRef.current?.takeScreenshot();
@@ -504,33 +522,32 @@ function FullscreenChart({ symbol, onClose }: { symbol: string; onClose: () => v
       style={{ backgroundColor: "rgba(0,0,0,0.88)", backdropFilter: "blur(6px)" }}
       onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="w-full max-w-7xl rounded-2xl overflow-hidden flex flex-col"
-        style={{ backgroundColor: "#0D1117", border: "1px solid rgba(255,255,255,0.12)", maxHeight: "94vh" }}>
+        style={{ backgroundColor: "var(--bg-surface)", border: "1px solid var(--border-bright)", maxHeight: "94vh" }}>
 
         <div className="px-5 py-3 flex items-center justify-between shrink-0"
-          style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+          style={{ borderBottom: "1px solid var(--border)" }}>
           <div className="flex items-center gap-3">
-            <TrendingUp size={14} style={{ color: "#00E676" }} />
-            <span className="font-semibold text-sm" style={{ color: "#F0F6FC" }}>{symbol}</span>
-            <span className="text-xs font-mono" style={{ color: "#8B949E" }}>
+            <TrendingUp size={14} style={{ color: "var(--accent-green)" }} />
+            <span className="font-semibold text-sm" style={{ color: "var(--text-primary)" }}>{symbol}</span>
+            <span className="text-xs font-mono" style={{ color: "var(--text-muted)" }}>
               {showCustom && customStart && customEnd
                 ? `${customStart} → ${customEnd}`
                 : `${PERIODS[periodIdx].label} · ${PERIODS[periodIdx].interval}`}
             </span>
           </div>
           <div className="flex items-center gap-3">
-            {/* Custom date range toggle */}
             <button
               onClick={() => setShowCustom((p) => !p)}
               className="text-xs px-2 py-1 rounded transition-colors"
               style={{
-                border: `1px solid ${showCustom ? "var(--accent-green)" : "rgba(255,255,255,0.1)"}`,
-                color: showCustom ? "#00E676" : "#8B949E",
+                border: `1px solid ${showCustom ? "var(--accent-green)" : "var(--border)"}`,
+                color: showCustom ? "var(--accent-green)" : "var(--text-muted)",
                 backgroundColor: showCustom ? "rgba(0,230,118,0.08)" : "transparent",
               }}>
               Custom range
             </button>
-            <span className="text-xs hidden sm:block" style={{ color: "#8B949E" }}>Scroll to zoom · Drag to pan · Esc to close</span>
-            <button onClick={onClose} className="p-1.5 rounded-lg" style={{ border: "1px solid rgba(255,255,255,0.1)", color: "#8B949E" }}>
+            <span className="text-xs hidden sm:block" style={{ color: "var(--text-muted)" }}>Scroll to zoom · Drag to pan · Esc to close</span>
+            <button onClick={onClose} className="p-1.5 rounded-lg" style={{ border: "1px solid var(--border)", color: "var(--text-muted)" }}>
               <X size={14} />
             </button>
           </div>
@@ -553,8 +570,8 @@ function FullscreenChart({ symbol, onClose }: { symbol: string; onClose: () => v
           <div ref={wrapRef} className="relative w-full h-full" style={{ minHeight: chartH }}>
             <div ref={containerRef} className="w-full" style={{ height: chartH }} />
             {isLoading && !bars.length && (
-              <div className="absolute inset-0 flex items-center justify-center" style={{ background: "rgba(13,17,23,0.7)" }}>
-                <span className="text-xs font-mono animate-pulse" style={{ color: "#8B949E" }}>Loading…</span>
+              <div className="absolute inset-0 flex items-center justify-center" style={{ background: "color-mix(in srgb, var(--bg-surface) 85%, transparent)" }}>
+                <span className="text-xs font-mono animate-pulse" style={{ color: "var(--text-muted)" }}>Loading...</span>
               </div>
             )}
             {canvasSize.w > 0 && (
@@ -565,14 +582,14 @@ function FullscreenChart({ symbol, onClose }: { symbol: string; onClose: () => v
 
         {bars.length > 0 && (
           <div className="px-5 py-2 flex items-center gap-4 text-xs font-mono shrink-0"
-            style={{ borderTop: "1px solid rgba(255,255,255,0.06)", color: "#8B949E" }}>
+            style={{ borderTop: "1px solid var(--border)", color: "var(--text-muted)" }}>
             <span>{bars.length} bars</span>
-            <span>H: <span style={{ color: "#00E676" }}>${Math.max(...bars.map(b => b.high)).toFixed(2)}</span></span>
-            <span>L: <span style={{ color: "#FF3D57" }}>${Math.min(...bars.map(b => b.low)).toFixed(2)}</span></span>
+            <span>H: <span style={{ color: "var(--accent-green)" }}>${Math.max(...bars.map(b => b.high)).toFixed(2)}</span></span>
+            <span>L: <span style={{ color: "var(--accent-red)" }}>${Math.min(...bars.map(b => b.low)).toFixed(2)}</span></span>
             <span className="ml-auto flex items-center gap-2">
-              <span style={{ color: "rgba(255,200,0,0.8)" }}>— Trend</span>
-              <span style={{ color: "rgba(100,200,255,0.8)" }}>— H-Line</span>
-              <span style={{ color: "rgba(255,100,200,0.8)" }}>— Ray</span>
+              <span style={{ color: "rgba(255,200,0,0.8)" }}>-- Trend</span>
+              <span style={{ color: "rgba(100,200,255,0.8)" }}>-- H-Line</span>
+              <span style={{ color: "rgba(255,100,200,0.8)" }}>-- Ray</span>
               <BarChart2 size={10} className="ml-1" />
               {["1d","5d"].includes(period) ? "Finnhub" : "yfinance"}
             </span>
@@ -591,6 +608,7 @@ export default function CandlestickChart({ symbol }: { symbol: string }) {
   const [chartType, setChartType] = useState<ChartType>("candlestick");
   const [expanded,  setExpanded]  = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const theme = useStore((s) => s.theme);
 
   const { period, interval, fetch: fetchPeriod } = PERIODS[periodIdx];
   const { data, isLoading }  = useHistory(symbol, fetchPeriod, interval);
@@ -599,7 +617,7 @@ export default function CandlestickChart({ symbol }: { symbol: string }) {
   const toggleOverlay = useCallback((o: Overlay) =>
     setOverlays((p) => { const s = new Set(p); s.has(o) ? s.delete(o) : s.add(o); return s; }), []);
 
-  const chartRef = useChart(containerRef, 320, bars, overlays, chartType, interval, period);
+  const chartRef = useChart(containerRef, 320, bars, overlays, chartType, interval, period, theme);
 
   const handleExport = useCallback(() => {
     const canvas = chartRef.current?.takeScreenshot();
@@ -626,12 +644,12 @@ export default function CandlestickChart({ symbol }: { symbol: string }) {
 
           {isLoading && !bars.length && (
             <div className="absolute inset-0 flex items-center justify-center rounded-lg"
-              style={{ backgroundColor: "rgba(13,17,23,0.75)" }}>
+              style={{ backgroundColor: "color-mix(in srgb, var(--bg-surface) 85%, transparent)" }}>
               <div className="flex flex-col items-center gap-2">
                 <div className="w-5 h-5 rounded-full border-2 animate-spin"
                   style={{ borderColor: "var(--accent-green)", borderTopColor: "transparent" }} />
                 <span className="text-xs font-mono" style={{ color: "var(--text-muted)" }}>
-                  {PERIODS[periodIdx].label} data…
+                  {PERIODS[periodIdx].label} data...
                 </span>
               </div>
             </div>

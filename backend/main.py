@@ -10,7 +10,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from api.middleware.cors import add_cors
 from api.middleware.rate_limit import rate_limit_middleware
-from api.routes import stocks, crypto, news, ai, predictions, keys, watchlist, alerts, notify, portfolio
+from api.routes import stocks, crypto, news, ai, predictions, keys, watchlist, alerts, notify, portfolio, chat, notifications
 from db.database import init_db
 from services.alert_checker import run_alert_checker
 
@@ -75,6 +75,8 @@ app.include_router(watchlist.router)
 app.include_router(alerts.router)
 app.include_router(notify.router)
 app.include_router(portfolio.router)
+app.include_router(chat.router)
+app.include_router(notifications.router)
 
 
 @app.get("/api/health", tags=["health"])

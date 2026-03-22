@@ -1,12 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { TrendingUp, Eye, EyeOff, LogIn } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 export default function SignInPage() {
+  return (
+    <Suspense>
+      <SignInForm />
+    </Suspense>
+  );
+}
+
+function SignInForm() {
   const [email,    setEmail]    = useState("");
   const [password, setPassword] = useState("");
   const [showPw,   setShowPw]   = useState(false);
@@ -15,8 +23,10 @@ export default function SignInPage() {
 
   const router       = useRouter();
   const searchParams = useSearchParams();
-  const next         = searchParams.get("next") ?? "/dashboard";
   const supabase     = createClient();
+
+  const rawNext = searchParams.get("next") ?? "/dashboard";
+  const next    = rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext.split("?")[0] : "/dashboard";
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

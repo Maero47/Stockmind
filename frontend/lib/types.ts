@@ -218,6 +218,34 @@ export interface FollowCounts {
   following: number;
 }
 
+// ── Chat Persistence ─────────────────────────────────────────────────────────
+
+export interface Conversation {
+  id: number;
+  symbol: string | null;
+  title: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChatMessageRecord {
+  id: number;
+  conversation_id: number;
+  role: string;
+  content: string;
+  created_at: string;
+}
+
+// ── Notification Settings ────────────────────────────────────────────────────
+
+export interface NotificationSettings {
+  quiet_hours_enabled: boolean;
+  quiet_start: string | null;
+  quiet_end: string | null;
+  group_notifications: boolean;
+  sound: string;
+}
+
 // ── Provider metadata (used in UI) ───────────────────────────────────────────
 
 export interface ProviderInfo {
@@ -249,7 +277,7 @@ export const PROVIDERS: ProviderInfo[] = [
   {
     id: "anthropic",
     name: "Anthropic",
-    model: "Claude 3.5 Haiku",
+    model: "Claude Haiku 4.5",
     description: "Precise, nuanced analysis with long context support.",
     freeUrl: "https://console.anthropic.com",
     color: "#CC9B7A",
@@ -257,7 +285,7 @@ export const PROVIDERS: ProviderInfo[] = [
   {
     id: "gemini",
     name: "Gemini",
-    model: "Gemini 1.5 Flash",
+    model: "Gemini 2.5 Flash",
     description: "Google's multimodal model with generous free tier.",
     freeUrl: "https://aistudio.google.com",
     color: "#4285F4",

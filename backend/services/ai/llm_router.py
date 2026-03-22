@@ -14,9 +14,9 @@ Provider = Literal["openai", "anthropic", "groq", "gemini"]
 # Default model IDs per provider
 _MODELS: dict[str, str] = {
     "openai":    "gpt-4o-mini",
-    "anthropic": "claude-3-5-haiku-20241022",
+    "anthropic": "claude-haiku-4-5-20251001",
     "groq":      "llama-3.3-70b-versatile",
-    "gemini":    "gemini-1.5-flash",
+    "gemini":    "gemini-2.5-flash",
 }
 
 

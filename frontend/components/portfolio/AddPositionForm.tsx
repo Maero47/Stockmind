@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Plus, Loader2 } from "lucide-react";
 import SymbolInput from "./SymbolInput";
+import { getHistory } from "@/lib/api";
 
 interface Props {
   onAdd: (symbol: string, quantity: number, avgBuyPrice: number, boughtAt: string, notes?: string) => Promise<void>;
@@ -15,6 +16,30 @@ export default function AddPositionForm({ onAdd }: Props) {
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const [fetchingPrice, setFetchingPrice] = useState(false);
+  const fetchRef = useRef(0);
+
+  useEffect(() => {
+    const sym = symbol.trim().toUpperCase();
+    if (!sym || !date) return;
+
+    const id = ++fetchRef.current;
+    setFetchingPrice(true);
+
+    const start = date;
+    const end = new Date(new Date(date).getTime() + 5 * 86400000).toISOString().slice(0, 10);
+
+    getHistory(sym, "1mo", "1d", start, end)
+      .then((hist) => {
+        if (fetchRef.current !== id) return;
+        const bar = hist.bars?.[0];
+        if (bar?.close) setPrice(bar.close.toFixed(2));
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (fetchRef.current === id) setFetchingPrice(false);
+      });
+  }, [symbol, date]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -61,12 +86,14 @@ export default function AddPositionForm({ onAdd }: Props) {
           />
         </div>
         <div>
-          <span className="block text-[10px] font-medium uppercase tracking-wider mb-1.5" style={{ color: "var(--text-muted)" }}>Avg Price ($)</span>
+          <span className="block text-[10px] font-medium uppercase tracking-wider mb-1.5" style={{ color: "var(--text-muted)" }}>
+            Price ($) {fetchingPrice && <Loader2 size={10} className="inline animate-spin ml-1" />}
+          </span>
           <input
             type="number"
             value={price}
             onChange={(e) => setPrice(e.target.value)}
-            placeholder="150.00"
+            placeholder={fetchingPrice ? "Fetching..." : "Auto-filled from date"}
             min="0.01"
             step="any"
             className="w-full rounded-lg px-3 py-2 text-sm font-mono outline-none"
@@ -99,7 +126,7 @@ export default function AddPositionForm({ onAdd }: Props) {
         <div className="flex items-end">
           <button
             type="submit"
-            disabled={saving || !symbol.trim() || !quantity || !price}
+            disabled={saving || fetchingPrice || !symbol.trim() || !quantity || !price}
             className="w-full py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-30 flex items-center justify-center gap-1.5"
             style={{ backgroundColor: "var(--accent-green)", color: "#080C14" }}
           >

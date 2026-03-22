@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import type { Session, User } from "@supabase/supabase-js";
-import type { AIProvider, ApiKeys, ChatMessage, Prediction, StockQuote } from "./types";
+import type { AIProvider, ApiKeys, ChatMessage, NotificationSettings, Prediction, StockQuote } from "./types";
 
 // ── Session key for API keys ──────────────────────────────────────────────────
 const SESSION_KEY = "stockmind_keys";
@@ -51,6 +51,18 @@ interface StockMindState {
   // Quoted stock cache (symbol → StockQuote)
   quotes: Record<string, StockQuote>;
   setQuote: (symbol: string, quote: StockQuote) => void;
+
+  // Chat persistence
+  activeConversationId: number | null;
+  setActiveConversationId: (id: number | null) => void;
+
+  // Theme
+  theme: "dark" | "light";
+  toggleTheme: () => void;
+
+  // Notification settings (reactive, shared across components)
+  notificationSettings: NotificationSettings | null;
+  setNotificationSettings: (s: NotificationSettings | null) => void;
 
   // UI state
   isChatStreaming: boolean;
@@ -156,7 +168,11 @@ export const useStore = create<StockMindState>()(
           return { chatHistory: history };
         }),
 
-      clearChat: () => set({ chatHistory: [] }),
+      clearChat: () => set({ chatHistory: [], activeConversationId: null }),
+
+      // ── Chat persistence ────────────────────────────────────────────
+      activeConversationId: null,
+      setActiveConversationId: (id) => set({ activeConversationId: id }),
 
       // ── Predictions ───────────────────────────────────────────────────────
       predictions: {},
@@ -172,6 +188,15 @@ export const useStore = create<StockMindState>()(
           quotes: { ...state.quotes, [symbol.toUpperCase()]: quote },
         })),
 
+      // ── Theme ──────────────────────────────────────────────────────────────
+      theme: "dark",
+      toggleTheme: () =>
+        set((state) => ({ theme: state.theme === "dark" ? "light" : "dark" })),
+
+      // ── Notification settings ──────────────────────────────────────────────
+      notificationSettings: null,
+      setNotificationSettings: (s) => set({ notificationSettings: s }),
+
       // ── UI state ──────────────────────────────────────────────────────────
       isChatStreaming: false,
       setIsChatStreaming: (v) => set({ isChatStreaming: v }),
@@ -185,7 +210,7 @@ export const useStore = create<StockMindState>()(
       partialize: (state) => ({
         selectedSymbol: state.selectedSymbol,
         activeProvider: state.activeProvider,
-        // Intentionally omitting: apiKeys, chatHistory, predictions, quotes
+        theme: state.theme,
       }),
     }
   )

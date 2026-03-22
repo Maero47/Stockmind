@@ -1,6 +1,7 @@
 const STATIC_CACHE = "stockmind-static-v3";
 const API_CACHE = "stockmind-api-v1";
 const ALERT_STORE = "stockmind-alerts";
+const SETTINGS_STORE = "stockmind-notif-settings";
 
 const PRECACHE = ["/", "/dashboard", "/offline"];
 
@@ -14,7 +15,7 @@ self.addEventListener("activate", (e) => {
     caches.keys().then((keys) =>
       Promise.all(
         keys
-          .filter((k) => k !== STATIC_CACHE && k !== API_CACHE && k !== ALERT_STORE)
+          .filter((k) => k !== STATIC_CACHE && k !== API_CACHE && k !== ALERT_STORE && k !== SETTINGS_STORE)
           .map((k) => caches.delete(k))
       )
     )
@@ -55,6 +56,13 @@ self.addEventListener("message", (e) => {
       cache.put("active-alerts", response);
     });
   }
+
+  if (e.data?.type === "STORE_NOTIF_SETTINGS") {
+    caches.open(SETTINGS_STORE).then((cache) => {
+      const response = new Response(JSON.stringify(e.data.payload));
+      cache.put("notif-settings", response);
+    });
+  }
 });
 
 // open app when notification is clicked
@@ -78,8 +86,23 @@ self.addEventListener("periodicsync", (e) => {
   }
 });
 
+function isQuietHourSW(s) {
+  if (!s || !s.quiet_hours_enabled) return false;
+  var qs = s.quiet_start || "22:00";
+  var qe = s.quiet_end || "08:00";
+  const now = new Date();
+  const hhmm = String(now.getHours()).padStart(2, "0") + ":" + String(now.getMinutes()).padStart(2, "0");
+  if (qs <= qe) return hhmm >= qs && hhmm < qe;
+  return hhmm >= qs || hhmm < qe;
+}
+
 async function checkAlertsInBackground() {
   try {
+    const settingsCache = await caches.open(SETTINGS_STORE);
+    const settingsCached = await settingsCache.match("notif-settings");
+    const settings = settingsCached ? await settingsCached.json() : null;
+    if (isQuietHourSW(settings)) return;
+
     const cache = await caches.open(ALERT_STORE);
     const cached = await cache.match("active-alerts");
     if (!cached) return;

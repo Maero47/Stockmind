@@ -2,7 +2,11 @@ from datetime import datetime, timedelta
 from sqlalchemy import select, delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
-from db.models import Prediction, Search, Cache, WatchlistItem, PriceAlert, PortfolioPosition
+from sqlalchemy import func
+from db.models import (
+    Prediction, Search, Cache, WatchlistItem, PriceAlert, PortfolioPosition,
+    ChatConversation, ChatMessageRecord, NotificationSettings,
+)
 
 
 # ── Cache ────────────────────────────────────────────────────────────────────
@@ -66,14 +70,19 @@ async def save_prediction(
 
 async def get_watchlist(db: AsyncSession, user_id: str) -> list[WatchlistItem]:
     result = await db.execute(
-        select(WatchlistItem).where(WatchlistItem.user_id == user_id).order_by(WatchlistItem.added_at.desc())
+        select(WatchlistItem).where(WatchlistItem.user_id == user_id).order_by(WatchlistItem.sort_order.asc())
     )
     return list(result.scalars().all())
 
 
 async def add_to_watchlist(db: AsyncSession, user_id: str, symbol: str) -> None:
+    max_order = await db.execute(
+        select(func.coalesce(func.max(WatchlistItem.sort_order), -1))
+        .where(WatchlistItem.user_id == user_id)
+    )
+    next_order = (max_order.scalar() or 0) + 1
     stmt = sqlite_insert(WatchlistItem).values(
-        user_id=user_id, symbol=symbol.upper(), added_at=datetime.utcnow()
+        user_id=user_id, symbol=symbol.upper(), sort_order=next_order, added_at=datetime.utcnow()
     ).on_conflict_do_nothing(index_elements=["user_id", "symbol"])
     await db.execute(stmt)
     await db.commit()
@@ -85,6 +94,17 @@ async def remove_from_watchlist(db: AsyncSession, user_id: str, symbol: str) -> 
         .where(WatchlistItem.user_id == user_id)
         .where(WatchlistItem.symbol == symbol.upper())
     )
+    await db.commit()
+
+
+async def reorder_watchlist(db: AsyncSession, user_id: str, symbols: list[str]) -> None:
+    for i, sym in enumerate(symbols):
+        await db.execute(
+            update(WatchlistItem)
+            .where(WatchlistItem.user_id == user_id)
+            .where(WatchlistItem.symbol == sym.upper())
+            .values(sort_order=i)
+        )
     await db.commit()
 
 
@@ -221,3 +241,85 @@ async def delete_position(db: AsyncSession, position_id: int, user_id: str) -> b
     )
     await db.commit()
     return result.rowcount > 0
+
+
+# ── Chat Conversations ───────────────────────────────────────────────────────
+
+async def create_conversation(db: AsyncSession, user_id: str, symbol: str | None, title: str | None) -> ChatConversation:
+    conv = ChatConversation(user_id=user_id, symbol=symbol, title=title)
+    db.add(conv)
+    await db.commit()
+    await db.refresh(conv)
+    return conv
+
+
+async def get_conversations(db: AsyncSession, user_id: str, limit: int = 50) -> list[ChatConversation]:
+    result = await db.execute(
+        select(ChatConversation)
+        .where(ChatConversation.user_id == user_id)
+        .order_by(ChatConversation.updated_at.desc())
+        .limit(limit)
+    )
+    return list(result.scalars().all())
+
+
+async def get_conversation_messages(db: AsyncSession, conversation_id: int, user_id: str) -> list[ChatMessageRecord]:
+    conv = await db.execute(
+        select(ChatConversation)
+        .where(ChatConversation.id == conversation_id)
+        .where(ChatConversation.user_id == user_id)
+    )
+    if not conv.scalar_one_or_none():
+        return []
+    result = await db.execute(
+        select(ChatMessageRecord)
+        .where(ChatMessageRecord.conversation_id == conversation_id)
+        .order_by(ChatMessageRecord.created_at.asc())
+    )
+    return list(result.scalars().all())
+
+
+async def add_chat_message(db: AsyncSession, conversation_id: int, role: str, content: str) -> ChatMessageRecord:
+    msg = ChatMessageRecord(conversation_id=conversation_id, role=role, content=content)
+    db.add(msg)
+    await db.execute(
+        update(ChatConversation)
+        .where(ChatConversation.id == conversation_id)
+        .values(updated_at=datetime.utcnow())
+    )
+    await db.commit()
+    await db.refresh(msg)
+    return msg
+
+
+async def delete_conversation(db: AsyncSession, conversation_id: int, user_id: str) -> bool:
+    result = await db.execute(
+        delete(ChatConversation)
+        .where(ChatConversation.id == conversation_id)
+        .where(ChatConversation.user_id == user_id)
+    )
+    await db.commit()
+    return result.rowcount > 0
+
+
+# ── Notification Settings ─────────────────────────────────────────────────────
+
+async def get_notification_settings(db: AsyncSession, user_id: str) -> NotificationSettings | None:
+    result = await db.execute(
+        select(NotificationSettings).where(NotificationSettings.user_id == user_id)
+    )
+    return result.scalar_one_or_none()
+
+
+async def upsert_notification_settings(db: AsyncSession, user_id: str, values: dict) -> NotificationSettings:
+    stmt = sqlite_insert(NotificationSettings).values(user_id=user_id, **values)
+    stmt = stmt.on_conflict_do_update(
+        index_elements=["user_id"],
+        set_=values,
+    )
+    await db.execute(stmt)
+    await db.commit()
+    result = await db.execute(
+        select(NotificationSettings).where(NotificationSettings.user_id == user_id)
+    )
+    return result.scalar_one()
