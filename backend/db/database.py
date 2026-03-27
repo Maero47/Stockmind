@@ -1,21 +1,20 @@
+import os
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy import text
 
-DATABASE_URL = "sqlite+aiosqlite:///./stockmind.db"
-
-engine = create_async_engine(
-    DATABASE_URL,
-    echo=False,
-    connect_args={"check_same_thread": False},
-    execution_options={"sqlite_raw_connection": True} if False else {},
+DATABASE_URL = os.environ.get(
+    "DATABASE_URL",
+    "postgresql+asyncpg://postgres:postgres@localhost:5432/stockmind",
 )
 
-# Enable WAL mode for concurrent read/write without locking
-from sqlalchemy import event, text
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
+elif DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
 
-@event.listens_for(engine.sync_engine, "connect")
-def set_wal_mode(dbapi_conn, _):
-    dbapi_conn.execute("PRAGMA journal_mode=WAL")
+engine = create_async_engine(DATABASE_URL, echo=False)
+
 AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 
 
@@ -24,12 +23,12 @@ class Base(DeclarativeBase):
 
 
 async def init_db():
-    import db.models  # noqa: F401 — registers models with Base.metadata
+    import db.models  # noqa: F401
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         migrations = [
-            "ALTER TABLE price_alerts ADD COLUMN triggered_price FLOAT",
-            "ALTER TABLE watchlist ADD COLUMN sort_order INTEGER DEFAULT 0",
+            "ALTER TABLE price_alerts ADD COLUMN IF NOT EXISTS triggered_price FLOAT",
+            "ALTER TABLE watchlist ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0",
         ]
         for sql in migrations:
             try:

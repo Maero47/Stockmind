@@ -96,6 +96,7 @@ def _build_context(symbol: str) -> dict:
         "name":           quote.get("name", symbol),
         "price":          quote.get("price"),
         "change_pct":     quote.get("change_pct") or 0.0,
+        "currency":       quote.get("currency", "USD"),
         "day_low":        quote.get("day_low"),
         "day_high":       quote.get("day_high"),
         "volume":         quote.get("volume"),
@@ -124,8 +125,9 @@ Vary your phrasing and insights — every response should feel fresh and specifi
 
 LIVE DATA FOR {symbol} ({name}):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Price:       ${price} ({change_pct:+.2f}%)
-Day Range:   ${day_low} – ${day_high}
+Currency:    {currency}
+Price:       {price} {currency} ({change_pct:+.2f}%)
+Day Range:   {day_low} – {day_high} {currency}
 Volume:      {volume}  |  Mkt Cap: {market_cap}
 
 TECHNICALS:
@@ -133,7 +135,7 @@ RSI(14):     {rsi:.1f} → {rsi_signal}
 MACD:        {macd:.3f} / Signal {macd_signal:.3f} → {macd_cross}
 Bollinger:   {bb_pct:.0f}% between bands (100 = upper, 0 = lower)
 EMA 9/21:    {ema_cross}
-Support:     ${support:.2f}  |  Resistance: ${resistance:.2f}
+Support:     {support:.2f} {currency}  |  Resistance: {resistance:.2f} {currency}
 
 ML PREDICTION:
 Signal:      {ml_signal} ({ml_confidence:.0f}% confidence)
@@ -145,6 +147,7 @@ INSTRUCTIONS:
   4. **Key Levels** 5. **Risk Factors** 6. **Recommendation**
 - For specific questions (e.g. "what is the RSI?"), answer concisely and directly.
 - Always use the exact numbers above. Never make up data.
+- Always use the correct currency ({currency}) when mentioning prices. Never default to USD unless the stock is actually priced in USD.
 - Keep responses varied — do not reuse the same sentences as before.
 ⚠️ Not financial advice. For informational purposes only.
 """
@@ -154,6 +157,7 @@ def _build_system_prompt(ctx: dict) -> str:
     return _SYSTEM_TEMPLATE.format(
         symbol=ctx["symbol"],
         name=ctx["name"],
+        currency=ctx["currency"],
         price=_fmt(ctx["price"]),
         change_pct=ctx["change_pct"],
         day_low=_fmt(ctx["day_low"]),

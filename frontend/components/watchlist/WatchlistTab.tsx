@@ -5,6 +5,7 @@ import { Bookmark, X, TrendingUp, TrendingDown, Minus, GripVertical } from "luci
 import { Reorder } from "framer-motion";
 import { useWatchlist } from "@/hooks/useWatchlist";
 import { useQuote } from "@/hooks/useStockData";
+import { currencySymbol } from "@/lib/currency";
 
 function WatchlistCard({ symbol, onRemove }: { symbol: string; onRemove: () => void }) {
   const { data: quote } = useQuote(symbol);
@@ -39,7 +40,7 @@ function WatchlistCard({ symbol, onRemove }: { symbol: string; onRemove: () => v
             </div>
             <div className="text-right">
               <p className="font-mono text-sm font-bold" style={{ color: "var(--text-primary)" }}>
-                {price != null ? `$${price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "\u2014"}
+                {price != null ? `${currencySymbol(quote?.currency)}${price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "\u2014"}
               </p>
               <p className="flex items-center justify-end gap-1 text-xs font-mono" style={{ color }}>
                 <Icon size={11} />

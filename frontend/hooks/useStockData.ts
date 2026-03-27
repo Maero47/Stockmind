@@ -81,10 +81,10 @@ export function useNews(symbol: string) {
   );
 }
 
-export function useSearch(query: string) {
+export function useSearch(query: string, market?: string) {
   return useSWR(
-    query.length >= 1 ? `search:${query}` : null,
-    () => searchStocks(query),
+    query.length >= 1 ? `search:${query}:${market ?? ""}` : null,
+    () => searchStocks(query, market),
     { revalidateOnFocus: false }
   );
 }

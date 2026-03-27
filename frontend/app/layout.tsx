@@ -48,7 +48,7 @@ export default function RootLayout({
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=JSON.parse(localStorage.getItem("stockmind-ui")||"{}");if(t&&t.state&&t.state.theme==="light"){document.documentElement.setAttribute("data-theme","light");document.documentElement.style.colorScheme="light"}}catch(e){}})()`,
+            __html: `(function(){try{var t=JSON.parse(localStorage.getItem("stockmind-ui")||"{}");var v=t&&t.state&&typeof t.state.theme==="string"?t.state.theme:"";if(v==="light"||v==="dark"){document.documentElement.setAttribute("data-theme",v);document.documentElement.style.colorScheme=v}}catch(e){}})()`,
           }}
         />
       </head>

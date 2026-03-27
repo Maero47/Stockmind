@@ -451,6 +451,9 @@ export default function ChatInterface({ symbol }: Props) {
         <p className="text-xs text-center mt-2" style={{ color: "var(--text-muted)" }}>
           Shift+Enter for new line
         </p>
+        <p className="text-[10px] text-center mt-1" style={{ color: "var(--text-muted)", opacity: 0.6 }}>
+          Not financial advice. For informational purposes only.
+        </p>
       </div>
     </div>
   );

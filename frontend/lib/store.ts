@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import type { Session, User } from "@supabase/supabase-js";
 import type { AIProvider, ApiKeys, ChatMessage, NotificationSettings, Prediction, StockQuote } from "./types";
+import { encryptData, decryptData } from "./crypto";
 
 // ── Session key for API keys ──────────────────────────────────────────────────
 const SESSION_KEY = "stockmind_keys";
@@ -132,25 +133,24 @@ export const useStore = create<StockMindState>()(
         if (typeof window === "undefined") return;
         try {
           const raw = sessionStorage.getItem(SESSION_KEY);
-          if (raw) {
-            const parsed = JSON.parse(raw) as Partial<ApiKeys>;
-            set((state) => ({
-              apiKeys: { ...state.apiKeys, ...parsed },
-            }));
-          }
+          if (!raw) return;
+          decryptData(raw).then((plain) => {
+            const parsed = JSON.parse(plain) as Partial<ApiKeys>;
+            set((state) => ({ apiKeys: { ...state.apiKeys, ...parsed } }));
+          }).catch(() => {
+            sessionStorage.removeItem(SESSION_KEY);
+          });
         } catch {
-          // ignore malformed session data
+          sessionStorage.removeItem(SESSION_KEY);
         }
       },
 
       saveApiKeysToSession: () => {
         if (typeof window === "undefined") return;
         const { apiKeys } = get();
-        try {
-          sessionStorage.setItem(SESSION_KEY, JSON.stringify(apiKeys));
-        } catch {
-          // ignore storage errors
-        }
+        encryptData(JSON.stringify(apiKeys)).then((encrypted) => {
+          try { sessionStorage.setItem(SESSION_KEY, encrypted); } catch {}
+        }).catch(() => {});
       },
 
       // ── Chat ──────────────────────────────────────────────────────────────

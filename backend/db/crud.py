@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from sqlalchemy import select, delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy import func
 from db.models import (
     Prediction, Search, Cache, WatchlistItem, PriceAlert, PortfolioPosition,
@@ -81,7 +81,7 @@ async def add_to_watchlist(db: AsyncSession, user_id: str, symbol: str) -> None:
         .where(WatchlistItem.user_id == user_id)
     )
     next_order = (max_order.scalar() or 0) + 1
-    stmt = sqlite_insert(WatchlistItem).values(
+    stmt = pg_insert(WatchlistItem).values(
         user_id=user_id, symbol=symbol.upper(), sort_order=next_order, added_at=datetime.utcnow()
     ).on_conflict_do_nothing(index_elements=["user_id", "symbol"])
     await db.execute(stmt)
@@ -188,7 +188,7 @@ async def upsert_position(
     db: AsyncSession, user_id: str, symbol: str,
     quantity: float, avg_buy_price: float, bought_at: datetime, notes: str | None = None,
 ) -> PortfolioPosition:
-    stmt = sqlite_insert(PortfolioPosition).values(
+    stmt = pg_insert(PortfolioPosition).values(
         user_id=user_id, symbol=symbol.upper(),
         quantity=quantity, avg_buy_price=avg_buy_price,
         bought_at=bought_at, notes=notes,
@@ -312,7 +312,7 @@ async def get_notification_settings(db: AsyncSession, user_id: str) -> Notificat
 
 
 async def upsert_notification_settings(db: AsyncSession, user_id: str, values: dict) -> NotificationSettings:
-    stmt = sqlite_insert(NotificationSettings).values(user_id=user_id, **values)
+    stmt = pg_insert(NotificationSettings).values(user_id=user_id, **values)
     stmt = stmt.on_conflict_do_update(
         index_elements=["user_id"],
         set_=values,

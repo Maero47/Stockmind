@@ -1,16 +1,21 @@
 "use client";
 
+import { useState } from "react";
 import { DollarSign, Briefcase, Users, UserPlus, Target } from "lucide-react";
 import { usePortfolioStats } from "@/hooks/usePortfolioStats";
 import { useFollows } from "@/hooks/useFollows";
+import FollowListModal from "./FollowListModal";
 
-function Stat({ label, value, icon: Icon, color }: {
-  label: string; value: string | number; icon: typeof DollarSign; color: string;
+function Stat({ label, value, icon: Icon, color, onClick }: {
+  label: string; value: string | number; icon: typeof DollarSign; color: string; onClick?: () => void;
 }) {
   return (
     <div
-      className="rounded-xl p-4"
+      className={`rounded-xl p-4${onClick ? " cursor-pointer transition-colors" : ""}`}
       style={{ backgroundColor: "var(--bg-surface)", border: "1px solid var(--border)" }}
+      onClick={onClick}
+      onMouseEnter={onClick ? (e) => (e.currentTarget.style.borderColor = "var(--border-bright)") : undefined}
+      onMouseLeave={onClick ? (e) => (e.currentTarget.style.borderColor = "var(--border)") : undefined}
     >
       <div className="flex items-center gap-2 mb-2">
         <div
@@ -41,25 +46,36 @@ interface Props {
 export default function ProfileStats({ userId, isOwn, predictionsCount = 0 }: Props) {
   const { summary, positions } = usePortfolioStats();
   const { counts } = useFollows(userId);
+  const [followModal, setFollowModal] = useState<"followers" | "following" | null>(null);
 
   const topHolding = positions.length > 0
     ? positions.reduce((a, b) => ((a.marketValue ?? 0) > (b.marketValue ?? 0) ? a : b)).symbol
     : "--";
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-      {isOwn ? (
-        <>
-          <Stat label="Portfolio Value" value={summary.totalValue > 0 ? formatValue(summary.totalValue) : "--"} icon={DollarSign} color="var(--accent-green)" />
-          <Stat label="Top Holding" value={topHolding} icon={Briefcase} color="var(--accent-blue)" />
-        </>
-      ) : (
-        <>
-          <Stat label="Predictions" value={predictionsCount} icon={Target} color="var(--accent-green)" />
-        </>
+    <>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {isOwn ? (
+          <>
+            <Stat label="Portfolio Value" value={summary.totalValue > 0 ? formatValue(summary.totalValue) : "--"} icon={DollarSign} color="var(--accent-green)" />
+            <Stat label="Top Holding" value={topHolding} icon={Briefcase} color="var(--accent-blue)" />
+          </>
+        ) : (
+          <>
+            <Stat label="Predictions" value={predictionsCount} icon={Target} color="var(--accent-green)" />
+          </>
+        )}
+        <Stat label="Followers" value={counts.followers} icon={Users} color={isOwn ? "var(--accent-amber)" : "var(--accent-blue)"} onClick={() => setFollowModal("followers")} />
+        <Stat label="Following" value={counts.following} icon={UserPlus} color="#AA00FF" onClick={() => setFollowModal("following")} />
+      </div>
+
+      {followModal && (
+        <FollowListModal
+          userId={userId}
+          tab={followModal}
+          onClose={() => setFollowModal(null)}
+        />
       )}
-      <Stat label="Followers" value={counts.followers} icon={Users} color={isOwn ? "var(--accent-amber)" : "var(--accent-blue)"} />
-      <Stat label="Following" value={counts.following} icon={UserPlus} color="#AA00FF" />
-    </div>
+    </>
   );
 }

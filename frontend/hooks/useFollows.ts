@@ -8,6 +8,31 @@ import type { FollowCounts } from "@/lib/types";
 
 const supabase = createClient();
 
+export interface FollowUser {
+  user_id: string;
+  display_name: string;
+  avatar_color: string;
+  avatar_url: string | null;
+}
+
+export async function fetchFollowers(userId: string): Promise<FollowUser[]> {
+  const { data } = await supabase
+    .from("user_follows")
+    .select("follower:user_profiles!follower_id(user_id, display_name, avatar_color, avatar_url)")
+    .eq("following_id", userId);
+  if (!data) return [];
+  return data.map((r: Record<string, unknown>) => r.follower as FollowUser);
+}
+
+export async function fetchFollowing(userId: string): Promise<FollowUser[]> {
+  const { data } = await supabase
+    .from("user_follows")
+    .select("following:user_profiles!following_id(user_id, display_name, avatar_color, avatar_url)")
+    .eq("follower_id", userId);
+  if (!data) return [];
+  return data.map((r: Record<string, unknown>) => r.following as FollowUser);
+}
+
 export function useFollows(targetUserId: string | null) {
   const user = useStore((s) => s.user);
 

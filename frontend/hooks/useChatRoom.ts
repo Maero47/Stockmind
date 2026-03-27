@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useStore } from "@/lib/store";
 import { createClient } from "@/lib/supabase/client";
 import type { ChatRoomMessage } from "@/lib/types";
 
 const supabase = createClient();
+let channelCounter = 0;
 
 export type ChannelStatus = "connected" | "connecting" | "disconnected";
 
@@ -14,11 +15,13 @@ export function useChatRoom(symbol: string) {
   const [messages, setMessages] = useState<ChatRoomMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [status, setStatus] = useState<ChannelStatus>("connecting");
+  const removedRef = useRef(false);
 
   const upperSymbol = symbol.toUpperCase();
 
   useEffect(() => {
     if (!upperSymbol) return;
+    removedRef.current = false;
     setIsLoading(true);
     setStatus("connecting");
 
@@ -29,12 +32,15 @@ export function useChatRoom(symbol: string) {
       .order("created_at", { ascending: true })
       .limit(100)
       .then(({ data }) => {
-        setMessages(data ?? []);
-        setIsLoading(false);
+        if (!removedRef.current) {
+          setMessages(data ?? []);
+          setIsLoading(false);
+        }
       });
 
+    const id = ++channelCounter;
     const channel = supabase
-      .channel(`chat:${upperSymbol}`)
+      .channel(`chat:${upperSymbol}:${id}`)
       .on(
         "postgres_changes",
         {
@@ -44,6 +50,7 @@ export function useChatRoom(symbol: string) {
           filter: `symbol=eq.${upperSymbol}`,
         },
         (payload) => {
+          if (removedRef.current) return;
           const msg = payload.new as ChatRoomMessage;
           setMessages((prev) => {
             if (prev.some((m) => m.id === msg.id)) return prev;
@@ -52,12 +59,14 @@ export function useChatRoom(symbol: string) {
         }
       )
       .subscribe((state) => {
+        if (removedRef.current) return;
         if (state === "SUBSCRIBED") setStatus("connected");
-        else if (state === "CHANNEL_ERROR" || state === "TIMED_OUT" || state === "CLOSED") setStatus("disconnected");
+        else if (state === "CHANNEL_ERROR" || state === "TIMED_OUT") setStatus("connecting");
         else setStatus("connecting");
       });
 
     return () => {
+      removedRef.current = true;
       supabase.removeChannel(channel);
     };
   }, [upperSymbol]);

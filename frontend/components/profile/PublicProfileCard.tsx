@@ -3,6 +3,7 @@
 import { Calendar } from "lucide-react";
 import { usePublicProfile } from "@/hooks/useProfile";
 import { useStore } from "@/lib/store";
+import { safeImageUrl } from "@/lib/sanitize";
 import FollowButton from "./FollowButton";
 
 const HEX_RE = /^#[0-9A-Fa-f]{6}$/;
@@ -80,8 +81,8 @@ export default function PublicProfileCard({ userId }: Props) {
             border: `2px solid ${color}50`,
           }}
         >
-          {profile.avatar_url ? (
-            <img src={profile.avatar_url} alt={profile.display_name} className="w-full h-full object-cover" />
+          {safeImageUrl(profile.avatar_url) ? (
+            <img src={safeImageUrl(profile.avatar_url)!} alt={profile.display_name} className="w-full h-full object-cover" />
           ) : (
             initial
           )}

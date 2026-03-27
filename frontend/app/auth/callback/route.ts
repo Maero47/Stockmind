@@ -17,10 +17,20 @@ export async function GET(request: Request) {
   const code = searchParams.get("code");
   const next = safePath(searchParams.get("next"));
 
+  const termsAccepted = searchParams.get("terms_accepted") === "1";
+
   if (code) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
+      if (termsAccepted) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user && !user.user_metadata?.terms_accepted_at) {
+          await supabase.auth.updateUser({
+            data: { terms_accepted_at: new Date().toISOString() },
+          });
+        }
+      }
       return NextResponse.redirect(`${origin}${next}`);
     }
   }

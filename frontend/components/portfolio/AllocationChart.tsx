@@ -23,10 +23,10 @@ export default function AllocationChart({ positions, totalValue }: Props) {
 
   if (!positions.length) return null;
 
-  const sorted = [...positions].sort((a, b) => b.marketValue - a.marketValue);
+  const sorted = [...positions].sort((a, b) => b.marketValueUsd - a.marketValueUsd);
   const data = sorted.map((p) => ({
     name: p.symbol,
-    value: p.marketValue,
+    value: p.marketValueUsd,
     pct: p.allocation,
   }));
 
@@ -40,26 +40,27 @@ export default function AllocationChart({ positions, totalValue }: Props) {
 
   return (
     <div
-      className="rounded-xl p-5 h-full"
+      className="rounded-xl p-5 h-full w-full flex flex-col"
       style={{ backgroundColor: "var(--bg-surface)", border: "1px solid var(--border)" }}
     >
       <p
-        className="text-[10px] font-medium tracking-widest uppercase mb-4"
+        className="text-[10px] font-medium tracking-widest uppercase mb-2 shrink-0"
         style={{ color: "var(--text-muted)" }}
       >
         Allocation
       </p>
 
-      <div className="flex flex-col items-center">
-        <div className="relative w-full max-w-[220px] aspect-square">
+      {/* Donut */}
+      <div className="flex items-center justify-center">
+        <div className="relative shrink-0" style={{ width: "260px", height: "260px" }}>
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
                 data={data}
                 cx="50%"
                 cy="50%"
-                innerRadius="30%"
-                outerRadius="46%"
+                innerRadius="55%"
+                outerRadius="85%"
                 paddingAngle={2}
                 dataKey="value"
                 stroke="none"
@@ -82,40 +83,46 @@ export default function AllocationChart({ positions, totalValue }: Props) {
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
             {active ? (
               <>
-                <span className="text-[10px] font-bold font-mono" style={{ color: COLORS[hovered! % COLORS.length] }}>
+                <span className="text-xs font-bold font-mono" style={{ color: COLORS[hovered! % COLORS.length] }}>
                   {active.name}
                 </span>
-                <span className="text-sm font-bold font-mono" style={{ color: "var(--text-primary)" }}>
+                <span className="text-lg font-bold font-mono" style={{ color: "var(--text-primary)" }}>
                   ${fmt(active.value)}
                 </span>
-                <span className="text-[10px] font-mono" style={{ color: "var(--text-muted)" }}>
+                <span className="text-xs font-mono" style={{ color: "var(--text-muted)" }}>
                   {fmt(active.pct)}%
                 </span>
               </>
             ) : (
               <>
-                <span className="text-[10px] uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Total</span>
-                <span className="text-sm font-bold font-mono" style={{ color: "var(--text-primary)" }}>
+                <span className="text-xs uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Total</span>
+                <span className="text-lg font-bold font-mono" style={{ color: "var(--text-primary)" }}>
                   {fmtTotal}
                 </span>
               </>
             )}
           </div>
         </div>
+      </div>
 
-        <div className="w-full mt-4 space-y-1">
-          {data.map((d, i) => (
-            <div key={d.name} className="flex items-center gap-2 text-xs px-1 py-1 rounded-md transition-colors cursor-default"
-              onMouseEnter={() => setHovered(i)}
-              onMouseLeave={() => setHovered(null)}
-              style={{ backgroundColor: hovered === i ? "rgba(255,255,255,0.04)" : "transparent" }}
-            >
-              <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-              <span className="font-mono font-semibold" style={{ color: "var(--text-primary)" }}>{d.name}</span>
-              <span className="ml-auto font-mono" style={{ color: "var(--text-muted)" }}>{fmt(d.pct)}%</span>
-            </div>
-          ))}
-        </div>
+      {/* Legend — scrollable when many assets */}
+      <div
+        className="shrink-0 mt-2 overflow-y-auto space-y-0.5 pr-1"
+        style={{ maxHeight: "160px" }}
+      >
+        {data.map((d, i) => (
+          <div
+            key={d.name}
+            className="flex items-center gap-2 text-xs px-2 py-1.5 rounded-md transition-colors cursor-default"
+            onMouseEnter={() => setHovered(i)}
+            onMouseLeave={() => setHovered(null)}
+            style={{ backgroundColor: hovered === i ? "rgba(255,255,255,0.04)" : "transparent" }}
+          >
+            <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+            <span className="font-mono font-semibold" style={{ color: "var(--text-primary)" }}>{d.name}</span>
+            <span className="ml-auto font-mono" style={{ color: "var(--text-muted)" }}>{fmt(d.pct)}%</span>
+          </div>
+        ))}
       </div>
     </div>
   );

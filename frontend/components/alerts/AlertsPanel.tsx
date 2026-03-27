@@ -4,8 +4,10 @@ import { useState } from "react";
 import { Trash2, ArrowUp, ArrowDown } from "lucide-react";
 import { useAlerts } from "@/hooks/useAlerts";
 import type { AlertDirection } from "@/lib/types";
+import { currencySymbol } from "@/lib/currency";
 
-export default function AlertsPanel({ symbol }: { symbol: string }) {
+export default function AlertsPanel({ symbol, currency }: { symbol: string; currency?: string }) {
+  const cs = currencySymbol(currency);
   const { alerts, create, remove } = useAlerts();
   const [price, setPrice]   = useState("");
   const [dir, setDir]       = useState<AlertDirection>("above");
@@ -59,7 +61,7 @@ export default function AlertsPanel({ symbol }: { symbol: string }) {
       <div className="flex gap-2">
         <input
           type="number"
-          placeholder="Target price ($)"
+          placeholder={`Target price (${cs.trim()})`}
           value={price}
           onChange={(e) => setPrice(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleCreate()}
@@ -103,7 +105,7 @@ export default function AlertsPanel({ symbol }: { symbol: string }) {
                   {a.direction === "above" ? "Above" : "Below"}
                 </span>
                 <span style={{ color: "var(--text-primary)" }}>
-                  ${a.target_price.toLocaleString()}
+                  {cs}{a.target_price.toLocaleString()}
                 </span>
               </div>
               <button

@@ -1,8 +1,11 @@
+import re
+
 import yfinance as yf
 from fastapi import APIRouter, HTTPException, Depends, Query, Path
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from db.database import get_db
+from services.data.stock_fetcher import _finnhub_client
 from db import crud
 from services.data import stock_fetcher
 
@@ -61,30 +64,129 @@ class SearchResult(BaseModel):
     type: str
 
 
+BIST_STOCKS = [
+    ("THYAO.IS", "Turk Hava Yollari"),
+    ("GARAN.IS", "Garanti Bankasi"),
+    ("AKBNK.IS", "Akbank"),
+    ("ASELS.IS", "Aselsan"),
+    ("KCHOL.IS", "Koc Holding"),
+    ("SAHOL.IS", "Sabanci Holding"),
+    ("SISE.IS", "Turkiye Sise ve Cam"),
+    ("EREGL.IS", "Eregli Demir Celik"),
+    ("BIMAS.IS", "BIM Birlesik Magazalar"),
+    ("TUPRS.IS", "Tupras"),
+    ("PGSUS.IS", "Pegasus Hava Tasimaciligi"),
+    ("TAVHL.IS", "TAV Havalimanlari"),
+    ("TCELL.IS", "Turkcell"),
+    ("TTKOM.IS", "Turk Telekomunikasyon"),
+    ("YKBNK.IS", "Yapi ve Kredi Bankasi"),
+    ("HALKB.IS", "Turkiye Halk Bankasi"),
+    ("VAKBN.IS", "Turkiye Vakiflar Bankasi"),
+    ("ISCTR.IS", "Turkiye Is Bankasi"),
+    ("PETKM.IS", "Petkim Petrokimya"),
+    ("ARCLK.IS", "Arcelik"),
+    ("VESTL.IS", "Vestel Elektronik"),
+    ("TOASO.IS", "Tofas Oto Fabrikasi"),
+    ("FROTO.IS", "Ford Otosan"),
+    ("DOHOL.IS", "Dogan Holding"),
+    ("EKGYO.IS", "Emlak Konut GYO"),
+    ("ENKAI.IS", "Enka Insaat"),
+    ("KOZAL.IS", "Koza Altin"),
+    ("KOZAA.IS", "Koza Anadolu Metal"),
+    ("SASA.IS", "Sasa Polyester"),
+    ("SOKM.IS", "Sok Marketler"),
+    ("MGROS.IS", "Migros Ticaret"),
+    ("ULKER.IS", "Ulker Biskuvi"),
+]
+
+
+MARKET_EXCHANGES: dict[str, set[str]] = {
+    "us":    {"NMS", "NYQ", "NGM", "NCM", "PCX", "BTS", "NYE"},
+    "bist":  {"IST"},
+    "lse":   {"LSE", "IOB"},
+    "eu":    {"FRA", "GER", "PAR", "AMS", "MIL", "MCE", "BER", "STU", "VIE"},
+    "asia":  {"TYO", "HKG", "KSC", "KOE", "SHH", "SHZ", "NSI", "BSE", "TAI", "JPX"},
+    "crypto": set(),
+}
+
+
 @router.get("/search", response_model=list[SearchResult])
-async def search_stocks(q: str = Query(..., min_length=1, max_length=20)):
+async def search_stocks(
+    q: str = Query(..., min_length=1, max_length=20),
+    market: str | None = Query(None),
+):
     """
     Live symbol search via yfinance.Search.
     Returns up to 8 matching stocks/ETFs/crypto.
+    Optional market filter: us, bist, lse, eu, asia, crypto.
     """
+    MARKET_SUFFIX = {"bist": ".IS", "lse": ".L"}
+    max_res = 20 if market else 8
+
+    quotes = []
     try:
-        results = yf.Search(q, max_results=8, news_count=0)
-        quotes  = results.quotes or []
+        results = yf.Search(q, max_results=max_res, news_count=0)
+        quotes = results.quotes or []
     except Exception:
-        quotes = []
+        pass
+
+    if market and market in MARKET_SUFFIX and not q.upper().endswith(MARKET_SUFFIX[market]):
+        try:
+            suffixed = yf.Search(q + MARKET_SUFFIX[market], max_results=max_res, news_count=0)
+            seen = {item.get("symbol") for item in quotes}
+            for item in (suffixed.quotes or []):
+                if item.get("symbol") not in seen:
+                    quotes.append(item)
+        except Exception:
+            pass
+
+    skip_types = {"MUTUALFUND", "MONEYMARKET", "OPTION"}
+    allowed_exchanges = MARKET_EXCHANGES.get(market, set()) if market else None
+    filter_crypto = market == "crypto"
 
     out = []
     for item in quotes:
         symbol = item.get("symbol", "")
         name   = item.get("longname") or item.get("shortname") or symbol
-        if not symbol:
+        qtype  = item.get("quoteType", "EQUITY")
+        exchange = item.get("exchange", "")
+        if not symbol or qtype in skip_types:
+            continue
+        if filter_crypto and qtype != "CRYPTOCURRENCY":
+            continue
+        if allowed_exchanges and exchange not in allowed_exchanges:
             continue
         out.append(SearchResult(
             symbol=symbol,
             name=name,
-            exchange=item.get("exchange", ""),
-            type=item.get("quoteType", "EQUITY"),
+            exchange=exchange,
+            type=qtype,
         ))
+        if len(out) >= 8:
+            break
+
+    if market and market != "crypto" and len(out) < 8 and _finnhub_client:
+        try:
+            fh = _finnhub_client.symbol_lookup(q)
+            seen = {r.symbol for r in out}
+            for item in (fh.get("result") or []):
+                sym = item.get("symbol", "")
+                sym = re.sub(r"\.E\.", ".", sym)
+                if sym in seen:
+                    continue
+                desc = item.get("description", sym)
+                if allowed_exchanges:
+                    suffix = sym.split(".")[-1] if "." in sym else ""
+                    exchange_map = {"IS": "IST", "L": "LSE"}
+                    if exchange_map.get(suffix, "") not in allowed_exchanges:
+                        continue
+                out.append(SearchResult(symbol=sym, name=desc, exchange="IST" if sym.endswith(".IS") else "", type="EQUITY"))
+                seen.add(sym)
+                if len(out) >= 8:
+                    break
+        except Exception:
+            pass
+
     return out
 
 
@@ -96,6 +198,15 @@ async def get_trending(category: str = Query("stocks", pattern="^(stocks|crypto|
     """
     symbols = stock_fetcher.get_trending(category)
     return {"category": category, "symbols": symbols}
+
+
+@router.get("/fx/rates")
+async def get_exchange_rates(currencies: str = Query(..., description="Comma-separated currency codes")):
+    codes = [c.strip().upper() for c in currencies.split(",") if c.strip()]
+    if not codes:
+        raise HTTPException(status_code=400, detail="No currencies provided")
+    rates = stock_fetcher.get_exchange_rates(codes)
+    return {"base": "USD", "rates": rates}
 
 
 _SYM = Path(..., min_length=1, max_length=20, pattern=r"^[A-Za-z0-9.\-\^=]+$")

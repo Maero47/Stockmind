@@ -4,6 +4,7 @@ import { useState, useRef } from "react";
 import { Calendar, Edit3, Check, X, Camera, Trash2 } from "lucide-react";
 import { useProfile } from "@/hooks/useProfile";
 import { useStore } from "@/lib/store";
+import { safeImageUrl } from "@/lib/sanitize";
 import AvatarCropModal from "./AvatarCropModal";
 
 export default function ProfileCard() {
@@ -90,8 +91,8 @@ export default function ProfileCard() {
               border: `2px solid ${avatarColor}50`,
             }}
           >
-            {avatarUrl ? (
-              <img src={avatarUrl} alt={displayName} className="w-full h-full object-cover" />
+            {safeImageUrl(avatarUrl) ? (
+              <img src={safeImageUrl(avatarUrl)!} alt={displayName} className="w-full h-full object-cover" />
             ) : (
               initial
             )}

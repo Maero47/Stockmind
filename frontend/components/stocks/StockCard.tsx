@@ -11,12 +11,13 @@ import {
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { getQuote, getHistory } from "@/lib/api";
 import type { StockQuote, StockHistory } from "@/lib/types";
+import { currencySymbol } from "@/lib/currency";
 
 // ── Formatters ────────────────────────────────────────────────────────────────
 
-function fmtPrice(n: number | null): string {
+function fmtPrice(n: number | null, cs = "$"): string {
   if (n == null) return "—";
-  return n.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 });
+  return `${cs}${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function fmtPct(n: number | null): string {
@@ -24,12 +25,12 @@ function fmtPct(n: number | null): string {
   return `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
 }
 
-function fmtLarge(n: number | null): string {
+function fmtLarge(n: number | null, cs = "$"): string {
   if (n == null) return "—";
-  if (n >= 1e12) return `$${(n / 1e12).toFixed(2)}T`;
-  if (n >= 1e9)  return `$${(n / 1e9).toFixed(2)}B`;
-  if (n >= 1e6)  return `$${(n / 1e6).toFixed(2)}M`;
-  return `$${n.toLocaleString()}`;
+  if (n >= 1e12) return `${cs}${(n / 1e12).toFixed(2)}T`;
+  if (n >= 1e9)  return `${cs}${(n / 1e9).toFixed(2)}B`;
+  if (n >= 1e6)  return `${cs}${(n / 1e6).toFixed(2)}M`;
+  return `${cs}${n.toLocaleString()}`;
 }
 
 function fmtVol(n: number | null): string {
@@ -71,7 +72,7 @@ function SparkTooltip({ active, payload }: { active?: boolean; payload?: Array<{
       className="px-2 py-1 rounded text-xs font-mono"
       style={{ backgroundColor: "var(--bg-elevated)", border: "1px solid var(--border-bright)" }}
     >
-      ${payload[0].value.toFixed(2)}
+      {payload[0].value.toFixed(2)}
     </div>
   );
 }
@@ -98,6 +99,7 @@ export default function StockCard({ symbol }: Props) {
 
   if (quoteLoading || histLoading || !quote) return <Skeleton />;
 
+  const cs = currencySymbol(quote.currency);
   const isPositive = (quote.change_pct ?? 0) >= 0;
   const isFlat     = quote.change_pct === 0 || quote.change_pct == null;
 
@@ -179,7 +181,7 @@ export default function StockCard({ symbol }: Props) {
       {/* Price + change */}
       <div className="flex items-end justify-between">
         <span className="font-mono text-lg font-medium text-text-primary tabular-nums">
-          {fmtPrice(quote.price)}
+          {fmtPrice(quote.price, cs)}
         </span>
         <span
           className="flex items-center gap-1 font-mono text-sm font-medium tabular-nums"
@@ -202,7 +204,7 @@ export default function StockCard({ symbol }: Props) {
           Vol: <span className="text-text-secondary">{fmtVol(quote.volume)}</span>
         </span>
         <span className="text-xs text-text-muted">
-          Mkt: <span className="text-text-secondary">{fmtLarge(quote.market_cap)}</span>
+          Mkt: <span className="text-text-secondary">{fmtLarge(quote.market_cap, cs)}</span>
         </span>
       </div>
     </div>

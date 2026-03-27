@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { TrendingUp, TrendingDown, Minus, Wifi, WifiOff } from "lucide-react";
 import type { StockQuote } from "@/lib/types";
+import { currencySymbol } from "@/lib/currency";
 import { useBinanceTicker } from "@/hooks/useBinanceTicker";
 import { useFinnhubTicker } from "@/hooks/useFinnhubTicker";
 import { useAlerts } from "@/hooks/useAlerts";
@@ -15,12 +16,12 @@ import type { AlertToastData } from "@/components/alerts/AlertToast";
 function fmt(n: number | null, dp = 2) {
   return n == null ? "—" : n.toLocaleString("en-US", { minimumFractionDigits: dp, maximumFractionDigits: dp });
 }
-function fmtLarge(n: number | null) {
+function fmtLarge(n: number | null, cs = "$") {
   if (n == null) return "—";
-  if (n >= 1e12) return `$${(n / 1e12).toFixed(2)}T`;
-  if (n >= 1e9)  return `$${(n / 1e9).toFixed(2)}B`;
-  if (n >= 1e6)  return `$${(n / 1e6).toFixed(2)}M`;
-  return `$${n.toLocaleString()}`;
+  if (n >= 1e12) return `${cs}${(n / 1e12).toFixed(2)}T`;
+  if (n >= 1e9)  return `${cs}${(n / 1e9).toFixed(2)}B`;
+  if (n >= 1e6)  return `${cs}${(n / 1e6).toFixed(2)}M`;
+  return `${cs}${n.toLocaleString()}`;
 }
 function fmtVol(n: number | null) {
   if (n == null) return "—";
@@ -120,6 +121,7 @@ export default function StockHeader({ quote, isLoading }: Props) {
     : isPos ? "var(--accent-green)" : "var(--accent-red)";
 
   const ChangeIcon = isFlat ? Minus : isPos ? TrendingUp : TrendingDown;
+  const cs = currencySymbol(quote.currency);
 
   return (
     <div className="mb-6">
@@ -158,7 +160,7 @@ export default function StockHeader({ quote, isLoading }: Props) {
           className={`font-mono text-4xl font-bold tabular-nums leading-none px-1 -mx-1 ${flashClass}`}
           style={{ color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}
         >
-          ${fmt(price)}
+          {cs}{fmt(price)}
         </span>
         <span
           className="flex items-center gap-1.5 font-mono text-lg font-medium tabular-nums"
@@ -175,12 +177,12 @@ export default function StockHeader({ quote, isLoading }: Props) {
         style={{ borderTop: "1px solid var(--border)" }}
       >
         {[
-          { label: "Market Cap", value: fmtLarge(quote.market_cap) },
+          { label: "Market Cap", value: fmtLarge(quote.market_cap, cs) },
           { label: "Volume",     value: fmtVol(volume) },
           { label: "P/E Ratio",  value: quote.pe_ratio ? fmt(quote.pe_ratio, 1) : "—" },
-          { label: "52W High",   value: `$${fmt(quote.week_52_high)}` },
-          { label: "52W Low",    value: `$${fmt(quote.week_52_low)}` },
-          { label: "Day Range",  value: `$${fmt(low)} – $${fmt(high)}` },
+          { label: "52W High",   value: `${cs}${fmt(quote.week_52_high)}` },
+          { label: "52W Low",    value: `${cs}${fmt(quote.week_52_low)}` },
+          { label: "Day Range",  value: `${cs}${fmt(low)} – ${cs}${fmt(high)}` },
         ].map(({ label, value }) => (
           <div key={label} className="flex flex-col gap-0.5">
             <span className="text-xs" style={{ color: "var(--text-muted)" }}>{label}</span>

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Loader2 } from "lucide-react";
 import type { EnrichedPosition } from "@/hooks/usePortfolioStats";
+import { currencySymbol } from "@/lib/currency";
 
 interface Props {
   position: EnrichedPosition;
@@ -79,7 +80,7 @@ export default function EditPositionModal({ position, onSave, onClose }: Props) 
             />
           </label>
           <label className="block">
-            <span className="text-[10px] font-medium uppercase tracking-wider mb-1.5 block" style={{ color: "var(--text-muted)" }}>Avg Buy Price ($)</span>
+            <span className="text-[10px] font-medium uppercase tracking-wider mb-1.5 block" style={{ color: "var(--text-muted)" }}>Avg Buy Price ({currencySymbol(position.currency).trim()})</span>
             <input
               type="number"
               value={price}

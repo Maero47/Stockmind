@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { TrendingUp, TrendingDown, Heart, Trash2, Target } from "lucide-react";
 import type { PredictionPost } from "@/lib/types";
+import { safeImageUrl } from "@/lib/sanitize";
 
 const HEX_RE = /^#[0-9A-Fa-f]{6}$/;
 function safeColor(raw: string): string {
@@ -63,8 +64,8 @@ export default function PredictionFeed({ predictions, isOwn, onToggleLike, onDel
                     className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold overflow-hidden"
                     style={{ backgroundColor: `${color}20`, color, border: `1px solid ${color}40` }}
                   >
-                    {p.avatar_url ? (
-                      <img src={p.avatar_url} alt="" className="w-full h-full object-cover" />
+                    {safeImageUrl(p.avatar_url) ? (
+                      <img src={safeImageUrl(p.avatar_url)!} alt="" className="w-full h-full object-cover" />
                     ) : (
                       p.display_name[0]?.toUpperCase()
                     )}

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { TrendingUp, TrendingDown, Pencil, Trash2, Briefcase, ArrowUpRight } from "lucide-react";
 import type { EnrichedPosition } from "@/hooks/usePortfolioStats";
+import { currencySymbol } from "@/lib/currency";
 
 function fmt(n: number, decimals = 2): string {
   return n.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
@@ -61,6 +62,7 @@ export default function PositionsTable({ positions, onEdit, onDelete }: Props) {
               const pnlPos = p.unrealizedPnl >= 0;
               const dailyPos = (p.dailyChange ?? 0) >= 0;
               const isLast = idx === positions.length - 1;
+              const cs = currencySymbol(p.currency);
               return (
                 <tr
                   key={p.id}
@@ -85,18 +87,18 @@ export default function PositionsTable({ positions, onEdit, onDelete }: Props) {
                     {fmt(p.quantity, p.quantity % 1 === 0 ? 0 : 4)}
                   </td>
                   <td className="px-4 py-3.5 font-mono" style={{ color: "var(--text-secondary)" }}>
-                    ${fmt(p.avg_buy_price)}
+                    {cs}{fmt(p.avg_buy_price)}
                   </td>
                   <td className="px-4 py-3.5 font-mono font-medium" style={{ color: "var(--text-primary)" }}>
-                    {p.currentPrice ? `$${fmt(p.currentPrice)}` : "--"}
+                    {p.currentPrice ? `${cs}${fmt(p.currentPrice)}` : "--"}
                   </td>
                   <td className="px-4 py-3.5 font-mono font-medium" style={{ color: "var(--text-primary)" }}>
-                    ${fmt(p.marketValue)}
+                    {cs}{fmt(p.marketValue)}
                   </td>
                   <td className="px-4 py-3.5">
                     <div className="flex flex-col">
                       <span className="font-mono font-medium" style={{ color: pnlPos ? "var(--accent-green)" : "var(--accent-red)" }}>
-                        {pnlPos ? "+" : ""}${fmt(p.unrealizedPnl)}
+                        {pnlPos ? "+" : ""}{cs}{fmt(p.unrealizedPnl)}
                       </span>
                       <span className="font-mono text-[10px]" style={{ color: pnlPos ? "var(--accent-green)" : "var(--accent-red)", opacity: 0.7 }}>
                         {pnlPos ? "+" : ""}{fmt(p.unrealizedPnlPct)}%
@@ -162,6 +164,7 @@ export default function PositionsTable({ positions, onEdit, onDelete }: Props) {
         {positions.map((p, idx) => {
           const pnlPos = p.unrealizedPnl >= 0;
           const isLast = idx === positions.length - 1;
+          const cs = currencySymbol(p.currency);
           return (
             <div
               key={p.id}
@@ -185,11 +188,11 @@ export default function PositionsTable({ positions, onEdit, onDelete }: Props) {
                 </div>
                 <div className="text-right">
                   <span style={{ color: "var(--text-muted)" }}>Value </span>
-                  <span style={{ color: "var(--text-primary)" }}>${fmt(p.marketValue)}</span>
+                  <span style={{ color: "var(--text-primary)" }}>{cs}{fmt(p.marketValue)}</span>
                 </div>
                 <div>
                   <span style={{ color: "var(--text-muted)" }}>Avg </span>
-                  <span style={{ color: "var(--text-secondary)" }}>${fmt(p.avg_buy_price)}</span>
+                  <span style={{ color: "var(--text-secondary)" }}>{cs}{fmt(p.avg_buy_price)}</span>
                 </div>
                 <div className="text-right">
                   <span style={{ color: "var(--text-muted)" }}>P&L </span>

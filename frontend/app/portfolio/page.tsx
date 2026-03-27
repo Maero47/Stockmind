@@ -7,6 +7,7 @@ import AllocationChart from "@/components/portfolio/AllocationChart";
 import PositionsTable from "@/components/portfolio/PositionsTable";
 import AddPositionForm from "@/components/portfolio/AddPositionForm";
 import EditPositionModal from "@/components/portfolio/EditPositionModal";
+import PortfolioChat from "@/components/portfolio/PortfolioChat";
 import { usePortfolio } from "@/hooks/usePortfolio";
 import { usePortfolioStats } from "@/hooks/usePortfolioStats";
 import type { EnrichedPosition } from "@/hooks/usePortfolioStats";
@@ -77,20 +78,13 @@ export default function PortfolioPage() {
             </div>
           )}
 
-          {/* Chart + table */}
+          {/* Positions table — full width */}
           {hasPositions && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              <div className="lg:col-span-1">
-                <AllocationChart positions={positions} totalValue={summary.totalValue} />
-              </div>
-              <div className="lg:col-span-2">
-                <PositionsTable
-                  positions={positions}
-                  onEdit={(p) => setEditing(p)}
-                  onDelete={(id) => remove(id)}
-                />
-              </div>
-            </div>
+            <PositionsTable
+              positions={positions}
+              onEdit={(p) => setEditing(p)}
+              onDelete={(id) => remove(id)}
+            />
           )}
 
           {!hasPositions && !showForm && (
@@ -100,6 +94,18 @@ export default function PortfolioPage() {
               onDelete={() => {}}
             />
           )}
+
+          {/* Allocation chart + AI Chat — side by side */}
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 items-stretch">
+            {hasPositions && (
+              <div className="lg:col-span-2 flex">
+                <AllocationChart positions={positions} totalValue={summary.totalValue} />
+              </div>
+            )}
+            <div className={hasPositions ? "lg:col-span-3 flex" : "lg:col-span-5"}>
+              <PortfolioChat positions={positions} summary={summary} />
+            </div>
+          </div>
         </div>
 
         {editing && (

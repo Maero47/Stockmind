@@ -25,8 +25,17 @@ function SignInForm() {
   const searchParams = useSearchParams();
   const supabase     = createClient();
 
-  const rawNext = searchParams.get("next") ?? "/dashboard";
-  const next    = rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext.split("?")[0] : "/dashboard";
+  const ALLOWED_PREFIXES = ["/dashboard", "/stock/", "/portfolio", "/settings", "/profile"];
+  function safePath(raw: string | null): string {
+    if (!raw) return "/dashboard";
+    try {
+      const url = new URL(raw, "http://localhost");
+      const p = url.pathname;
+      if (ALLOWED_PREFIXES.some((prefix) => p === prefix || p.startsWith(prefix + "/"))) return p;
+    } catch {}
+    return "/dashboard";
+  }
+  const next = safePath(searchParams.get("next"));
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

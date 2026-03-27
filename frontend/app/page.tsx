@@ -15,6 +15,7 @@ import Navbar from "@/components/layout/Navbar";
 import StockSearch from "@/components/stocks/StockSearch";
 import StockCard from "@/components/stocks/StockCard";
 import { getTrending, type TrendingCategory } from "@/lib/api";
+import { useStore } from "@/lib/store";
 
 // ── Quick-chip symbols ────────────────────────────────────────────────────────
 
@@ -173,6 +174,8 @@ function TrendingSection() {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function HomePage() {
+  const user = useStore((s) => s.user);
+
   return (
     <div
       className="min-h-screen"
@@ -182,11 +185,11 @@ export default function HomePage() {
 
       {/* ── Hero ────────────────────────────────────────────────────────── */}
       <section
-        className="relative min-h-screen flex flex-col items-center justify-center px-6 pt-24 pb-20 overflow-hidden dot-grid"
+        className="relative min-h-screen flex flex-col items-center justify-center px-6 pt-24 pb-20 dot-grid"
       >
         {/* Radial glow */}
         <div
-          className="pointer-events-none absolute inset-0 flex items-center justify-center"
+          className="pointer-events-none absolute inset-0 overflow-hidden flex items-center justify-center"
           aria-hidden
         >
           <div
@@ -250,48 +253,52 @@ export default function HomePage() {
             </span>
           </motion.p>
 
-          {/* Search bar */}
-          <motion.div
-            custom={2}
-            initial="hidden"
-            animate="visible"
-            variants={fadeUp}
-            className="w-full max-w-[600px] mx-auto mb-5"
-          >
-            <StockSearch size="hero" />
-          </motion.div>
-
-          {/* Quick chips */}
-          <motion.div
-            custom={3}
-            initial="hidden"
-            animate="visible"
-            variants={fadeUp}
-            className="flex flex-wrap justify-center gap-2"
-          >
-            {QUICK_CHIPS.map((sym) => (
-              <Link
-                key={sym}
-                href={`/stock/${sym}`}
-                className="px-3 py-1 rounded-md font-mono text-xs font-medium transition-all duration-200"
-                style={{
-                  backgroundColor: "var(--bg-surface)",
-                  border: "1px solid var(--border-bright)",
-                  color: "var(--text-secondary)",
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLAnchorElement).style.color = "var(--accent-green)";
-                  (e.currentTarget as HTMLAnchorElement).style.borderColor = "rgba(0,230,118,0.3)";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLAnchorElement).style.color = "var(--text-secondary)";
-                  (e.currentTarget as HTMLAnchorElement).style.borderColor = "var(--border-bright)";
-                }}
+          {user && (
+            <>
+              {/* Search bar */}
+              <motion.div
+                custom={2}
+                initial="hidden"
+                animate="visible"
+                variants={fadeUp}
+                className="w-full max-w-[600px] mx-auto mb-5"
               >
-                {sym}
-              </Link>
-            ))}
-          </motion.div>
+                <StockSearch size="hero" />
+              </motion.div>
+
+              {/* Quick chips */}
+              <motion.div
+                custom={3}
+                initial="hidden"
+                animate="visible"
+                variants={fadeUp}
+                className="flex flex-wrap justify-center gap-2"
+              >
+                {QUICK_CHIPS.map((sym) => (
+                  <Link
+                    key={sym}
+                    href={`/stock/${sym}`}
+                    className="px-3 py-1 rounded-md font-mono text-xs font-medium transition-all duration-200"
+                    style={{
+                      backgroundColor: "var(--bg-surface)",
+                      border: "1px solid var(--border-bright)",
+                      color: "var(--text-secondary)",
+                    }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLAnchorElement).style.color = "var(--accent-green)";
+                      (e.currentTarget as HTMLAnchorElement).style.borderColor = "rgba(0,230,118,0.3)";
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLAnchorElement).style.color = "var(--text-secondary)";
+                      (e.currentTarget as HTMLAnchorElement).style.borderColor = "var(--border-bright)";
+                    }}
+                  >
+                    {sym}
+                  </Link>
+                ))}
+              </motion.div>
+            </>
+          )}
         </div>
 
         {/* Scroll indicator */}
@@ -312,11 +319,15 @@ export default function HomePage() {
         </motion.div>
       </section>
 
-      {/* ── Trending grid ────────────────────────────────────────────────── */}
-      <TrendingSection />
+      {user && (
+        <>
+          {/* ── Trending grid ────────────────────────────────────────────── */}
+          <TrendingSection />
 
-      {/* ── Crypto movers ────────────────────────────────────────────────── */}
-      <CryptoMovers />
+          {/* ── Crypto movers ────────────────────────────────────────────── */}
+          <CryptoMovers />
+        </>
+      )}
 
       {/* ── Features ─────────────────────────────────────────────────────── */}
       <section
@@ -443,8 +454,13 @@ export default function HomePage() {
         className="px-6 py-8"
         style={{ borderTop: "1px solid var(--border)" }}
       >
-        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
-          <Image src="/logo.png" alt="StockMind" width={120} height={34} style={{ objectFit: "contain", height: "auto", opacity: 0.6 }} />
+        <div className="max-w-7xl mx-auto flex flex-col gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <Image src="/logo.png" alt="StockMind" width={120} height={34} style={{ objectFit: "contain", height: "auto", opacity: 0.6 }} />
+          </div>
+          <p className="text-xs" style={{ color: "var(--text-muted)", opacity: 0.5 }}>
+            Not financial advice. All information is provided for informational purposes only. StockMind does not recommend any securities or investment strategies.
+          </p>
         </div>
       </footer>
     </div>

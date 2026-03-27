@@ -37,8 +37,12 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   });
 
   if (!res.ok) {
-    const body = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(body?.detail ?? `API error ${res.status}`);
+    const body = await res.json().catch(() => null);
+    const detail = typeof body?.detail === "string" ? body.detail : "";
+    const safe = detail.length > 0 && detail.length < 200 && !/stack|traceback|sql|pq:/i.test(detail)
+      ? detail
+      : `Request failed (${res.status})`;
+    throw new Error(safe);
   }
 
   if (res.status === 204) return undefined as T;
@@ -109,10 +113,19 @@ export interface SearchResult {
   type: string;
 }
 
-export async function searchStocks(query: string): Promise<SearchResult[]> {
-  return apiFetch<SearchResult[]>(
-    `/api/stocks/search?q=${encodeURIComponent(query)}`
+export async function getExchangeRates(currencies: string[]): Promise<Record<string, number>> {
+  const unique = [...new Set(currencies.map((c) => c.toUpperCase()))];
+  if (!unique.length) return {};
+  const res = await apiFetch<{ base: string; rates: Record<string, number> }>(
+    `/api/stocks/fx/rates?currencies=${encodeURIComponent(unique.join(","))}`
   );
+  return res.rates;
+}
+
+export async function searchStocks(query: string, market?: string): Promise<SearchResult[]> {
+  let url = `/api/stocks/search?q=${encodeURIComponent(query)}`;
+  if (market) url += `&market=${encodeURIComponent(market)}`;
+  return apiFetch<SearchResult[]>(url);
 }
 
 // ── Key management ────────────────────────────────────────────────────────────
@@ -281,10 +294,18 @@ function _friendlyKeyError(raw: string, provider: AIProvider): string {
   return "Connection failed — check your key and try again.";
 }
 
+let _lastKeyTest = 0;
+const KEY_TEST_COOLDOWN = 5_000;
+
 export async function testProviderKey(
   provider: AIProvider,
   apiKey: string
 ): Promise<{ ok: boolean; error?: string }> {
+  const now = Date.now();
+  if (now - _lastKeyTest < KEY_TEST_COOLDOWN) {
+    return { ok: false, error: "Please wait a few seconds before testing again." };
+  }
+  _lastKeyTest = now;
   try {
     let resolved  = false;
     let errorMsg  = "";

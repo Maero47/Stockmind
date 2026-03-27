@@ -70,6 +70,43 @@ def _seed_meta(symbol: str, name: str, currency: str = "USD", exchange: str = ""
             "sector": "", "industry": "",
         })
 
+
+# ── Forex rates (USD base, 10min cache) ──────────────────────────────────────
+
+def get_exchange_rates(currencies: list[str]) -> dict[str, float]:
+    """Return {currency: rate_to_usd} for each requested currency. USD=1.0."""
+    result: dict[str, float] = {}
+    to_fetch: list[str] = []
+
+    for c in currencies:
+        c = c.upper()
+        if c == "USD":
+            result["USD"] = 1.0
+            continue
+        key = f"fx:{c}USD"
+        cached = _cache_get(key, 600)
+        if cached is not None:
+            result[c] = cached
+        else:
+            to_fetch.append(c)
+
+    for c in to_fetch:
+        ticker = f"{c}USD=X"
+        try:
+            t = yf.Ticker(ticker)
+            hist = t.history(period="2d")
+            if not hist.empty:
+                val = float(hist["Close"].iloc[-1])
+                result[c] = val
+                _cache_set(f"fx:{c}USD", val, 600)
+            else:
+                result[c] = 1.0
+        except Exception:
+            result[c] = 1.0
+
+    return result
+
+
 # ── Company profile cache (1h TTL — name/sector rarely changes) ───────────────
 _PROFILE_CACHE: dict[str, tuple[float, dict]] = {}
 

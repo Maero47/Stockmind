@@ -8,6 +8,7 @@ import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { useStore } from "@/lib/store";
 import { useProfile } from "@/hooks/useProfile";
+import { safeImageUrl } from "@/lib/sanitize";
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
@@ -48,17 +49,19 @@ export default function Navbar() {
     >
       <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
         {/* Logo */}
-        <Link href="/" className="flex items-center">
+        <Link href="/" className="flex items-center overflow-hidden" style={{ maxHeight: "40px" }}>
           <Image src="/logo.png" alt="StockMind" width={140} height={40} className="h-auto w-auto object-contain" priority />
         </Link>
 
         {/* Nav links */}
         <div className="flex items-center gap-1">
-          <div className="hidden md:flex items-center gap-1">
-            <NavLink href="/dashboard"  active={pathname === "/dashboard"}>Dashboard</NavLink>
-            <NavLink href="/portfolio"  active={pathname === "/portfolio"}>Portfolio</NavLink>
-            <NavLink href="/settings"   active={pathname === "/settings"}>Settings</NavLink>
-          </div>
+          {user && (
+            <div className="hidden md:flex items-center gap-1">
+              <NavLink href="/dashboard"  active={pathname === "/dashboard"}>Dashboard</NavLink>
+              <NavLink href="/portfolio"  active={pathname === "/portfolio"}>Portfolio</NavLink>
+              <NavLink href="/settings"   active={pathname === "/settings"}>Settings</NavLink>
+            </div>
+          )}
 
           <button
             onClick={toggleTheme}
@@ -82,8 +85,8 @@ export default function Navbar() {
                 }}
                 title="Profile"
               >
-                {avatarUrl ? (
-                  <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+                {safeImageUrl(avatarUrl) ? (
+                  <img src={safeImageUrl(avatarUrl)!} alt="" className="w-full h-full object-cover" />
                 ) : (
                   avatarLetter
                 )}

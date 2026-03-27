@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef } from "react";
 import { Plus, Loader2 } from "lucide-react";
 import SymbolInput from "./SymbolInput";
-import { getHistory } from "@/lib/api";
+import { getHistory, getQuote } from "@/lib/api";
+import { currencySymbol } from "@/lib/currency";
 
 interface Props {
   onAdd: (symbol: string, quantity: number, avgBuyPrice: number, boughtAt: string, notes?: string) => Promise<void>;
@@ -17,7 +18,14 @@ export default function AddPositionForm({ onAdd }: Props) {
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [fetchingPrice, setFetchingPrice] = useState(false);
+  const [currency, setCurrency] = useState("");
   const fetchRef = useRef(0);
+
+  useEffect(() => {
+    const sym = symbol.trim().toUpperCase();
+    if (!sym) { setCurrency(""); return; }
+    getQuote(sym).then((q) => setCurrency(q.currency ?? "USD")).catch(() => {});
+  }, [symbol]);
 
   useEffect(() => {
     const sym = symbol.trim().toUpperCase();
@@ -55,6 +63,7 @@ export default function AddPositionForm({ onAdd }: Props) {
     setPrice("");
     setDate(new Date().toISOString().slice(0, 10));
     setNotes("");
+    setCurrency("");
     setSaving(false);
   }
 
@@ -87,7 +96,7 @@ export default function AddPositionForm({ onAdd }: Props) {
         </div>
         <div>
           <span className="block text-[10px] font-medium uppercase tracking-wider mb-1.5" style={{ color: "var(--text-muted)" }}>
-            Price ($) {fetchingPrice && <Loader2 size={10} className="inline animate-spin ml-1" />}
+            Price ({currency ? currencySymbol(currency).trim() : "--"}) {fetchingPrice && <Loader2 size={10} className="inline animate-spin ml-1" />}
           </span>
           <input
             type="number"

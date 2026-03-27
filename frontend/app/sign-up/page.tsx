@@ -12,6 +12,7 @@ export default function SignUpPage() {
   const [showPw,   setShowPw]   = useState(false);
   const [error,    setError]    = useState("");
   const [loading,  setLoading]  = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   const router   = useRouter();
   const supabase = createClient();
@@ -19,6 +20,11 @@ export default function SignUpPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+
+    if (!termsAccepted) {
+      setError("You must accept the Terms of Service to continue.");
+      return;
+    }
 
     if (password.length < 12) {
       setError("Password must be at least 12 characters.");
@@ -30,7 +36,10 @@ export default function SignUpPage() {
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || location.origin}/auth/callback` },
+      options: {
+        emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || location.origin}/auth/callback`,
+        data: { terms_accepted_at: new Date().toISOString() },
+      },
     });
 
     if (error) {
@@ -42,9 +51,13 @@ export default function SignUpPage() {
   }
 
   async function handleOAuth(provider: "google" | "github") {
+    if (!termsAccepted) {
+      setError("You must accept the Terms of Service to continue.");
+      return;
+    }
     await supabase.auth.signInWithOAuth({
       provider,
-      options: { redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || location.origin}/auth/callback` },
+      options: { redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || location.origin}/auth/callback?terms_accepted=1` },
     });
   }
 
@@ -194,6 +207,27 @@ export default function SignUpPage() {
               )}
             </div>
 
+            {/* Terms checkbox */}
+            <label className="flex items-start gap-2.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={termsAccepted}
+                onChange={(e) => setTermsAccepted(e.target.checked)}
+                className="mt-0.5 w-4 h-4 rounded accent-[var(--accent-green)] cursor-pointer"
+              />
+              <span className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                I have read and agree to the{" "}
+                <Link
+                  href="/terms"
+                  target="_blank"
+                  style={{ color: "var(--accent-blue)" }}
+                  className="underline underline-offset-2"
+                >
+                  Terms of Service
+                </Link>
+              </span>
+            </label>
+
             {error && (
               <p
                 className="text-xs px-3 py-2 rounded-lg"
@@ -209,7 +243,7 @@ export default function SignUpPage() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !termsAccepted}
               className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all disabled:opacity-60"
               style={{ backgroundColor: "var(--accent-green)", color: "#080C14" }}
             >

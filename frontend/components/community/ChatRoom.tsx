@@ -7,6 +7,7 @@ import { useChatRoom } from "@/hooks/useChatRoom";
 import { useProfile } from "@/hooks/useProfile";
 import { useStore } from "@/lib/store";
 import type { ChatRoomMessage } from "@/lib/types";
+import { safeImageUrl } from "@/lib/sanitize";
 
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
@@ -36,7 +37,7 @@ function safeColor(raw: string): string {
 }
 
 function RoomMessage({ msg, isOwn, ownAvatarUrl }: { msg: ChatRoomMessage; isOwn: boolean; ownAvatarUrl?: string | null }) {
-  const imgUrl = isOwn ? (ownAvatarUrl ?? msg.avatar_url) : msg.avatar_url;
+  const imgUrl = safeImageUrl(isOwn ? (ownAvatarUrl ?? msg.avatar_url) : msg.avatar_url);
   const color = safeColor(msg.avatar_color);
   return (
     <div className={`flex gap-2 ${isOwn ? "flex-row-reverse" : ""}`}>
@@ -230,6 +231,9 @@ export default function ChatRoom({ symbol }: Props) {
             {input.length}/500
           </p>
         )}
+        <p className="text-[10px] text-center mt-1" style={{ color: "var(--text-muted)", opacity: 0.5 }}>
+          Messages are automatically deleted every 24 hours.
+        </p>
       </div>
     </div>
   );

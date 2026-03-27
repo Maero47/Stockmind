@@ -6,12 +6,13 @@ import { useRouter } from "next/navigation";
 import { getCryptoMovers } from "@/lib/api";
 import { useStore } from "@/lib/store";
 import type { StockQuote } from "@/lib/types";
+import { currencySymbol } from "@/lib/currency";
 
-function fmt(price: number | null): string {
+function fmt(price: number | null, cs = "$"): string {
   if (price == null) return "—";
-  if (price >= 1000) return `$${price.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
-  if (price >= 1)    return `$${price.toFixed(2)}`;
-  return `$${price.toFixed(4)}`;
+  if (price >= 1000) return `${cs}${price.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
+  if (price >= 1)    return `${cs}${price.toFixed(2)}`;
+  return `${cs}${price.toFixed(4)}`;
 }
 
 function MoverRow({ quote, type }: { quote: StockQuote; type: "gainer" | "loser" }) {
@@ -55,7 +56,7 @@ function MoverRow({ quote, type }: { quote: StockQuote; type: "gainer" | "loser"
 
       <div className="text-right flex-shrink-0 ml-2">
         <p className="text-xs font-mono font-semibold" style={{ color: "var(--text-primary)" }}>
-          {fmt(quote.price)}
+          {fmt(quote.price, currencySymbol(quote.currency))}
         </p>
         <p className="text-xs font-mono font-semibold" style={{ color }}>
           {label}

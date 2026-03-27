@@ -55,8 +55,11 @@ app = FastAPI(
 if os.environ.get("ENVIRONMENT") == "production":
     app.add_middleware(HTTPSRedirectMiddleware)
 
-# Security headers
-@app.middleware("http")
+# Middleware stack (added bottom-up: last added = outermost)
+# 1. Rate limiter (innermost)
+app.add_middleware(BaseHTTPMiddleware, dispatch=rate_limit_middleware)
+
+# 2. Security headers
 async def add_security_headers(request: Request, call_next):
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
@@ -64,8 +67,9 @@ async def add_security_headers(request: Request, call_next):
     response.headers["X-XSS-Protection"] = "1; mode=block"
     return response
 
-# Middleware — CORS must be added LAST so it wraps everything (outermost layer)
-app.add_middleware(BaseHTTPMiddleware, dispatch=rate_limit_middleware)
+app.add_middleware(BaseHTTPMiddleware, dispatch=add_security_headers)
+
+# 3. CORS (outermost — must wrap everything so error responses get CORS headers)
 add_cors(app)
 
 # Routers
