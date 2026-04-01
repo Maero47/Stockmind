@@ -12,6 +12,7 @@ import {
   TrendingUp, TrendingDown, Bitcoin, Layers, RefreshCw,
 } from "lucide-react";
 import Navbar from "@/components/layout/Navbar";
+import CurrencyTicker from "@/components/stocks/CurrencyTicker";
 import StockSearch from "@/components/stocks/StockSearch";
 import StockCard from "@/components/stocks/StockCard";
 import { getTrending, type TrendingCategory } from "@/lib/api";
@@ -182,6 +183,11 @@ export default function HomePage() {
       style={{ backgroundColor: "var(--bg-base)", color: "var(--text-primary)" }}
     >
       <Navbar />
+
+      {/* ── Currency ticker ─────────────────────────────────────────────── */}
+      <div className="fixed top-16 left-0 right-0 z-30">
+        <CurrencyTicker />
+      </div>
 
       {/* ── Hero ────────────────────────────────────────────────────────── */}
       <section

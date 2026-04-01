@@ -25,7 +25,7 @@ class HistoryMessage(BaseModel):
     content: str
 
 class AnalyzeRequest(BaseModel):
-    symbol:   constr(pattern=r"^[A-Za-z.\-]{1,12}$")  # type: ignore[valid-type]
+    symbol:   constr(pattern=r"^[A-Za-z0-9.\-=]{1,15}$")  # type: ignore[valid-type]
     question: constr(max_length=2000) = ""             # type: ignore[valid-type]
     history:  list[HistoryMessage] = []
 

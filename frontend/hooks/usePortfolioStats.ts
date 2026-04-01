@@ -5,6 +5,9 @@ import { usePortfolio } from "./usePortfolio";
 import { getQuote, getExchangeRates } from "@/lib/api";
 import type { PortfolioPosition, StockQuote } from "@/lib/types";
 
+// Sub-unit currencies: price is in fractional units (pence, agorot, etc.)
+const SUB_UNIT: Record<string, string> = { GBp: "GBP", ILA: "ILS" };
+
 export interface EnrichedPosition extends PortfolioPosition {
   currentPrice: number | null;
   marketValue: number;
@@ -50,7 +53,10 @@ export function usePortfolioStats() {
   );
 
   const nonUsdCurrencies = quotes
-    ? [...new Set(Object.values(quotes).map((q) => q.currency).filter((c) => c && c !== "USD"))]
+    ? [...new Set(Object.values(quotes).map((q) => {
+        const raw = q.currency ?? "USD";
+        return SUB_UNIT[raw] ?? raw;
+      }).filter((c) => c && c !== "USD"))]
     : [];
   const fxKey = nonUsdCurrencies.sort().join(",");
   const needsFx = nonUsdCurrencies.length > 0;
@@ -70,11 +76,15 @@ export function usePortfolioStats() {
 
   for (const pos of positions) {
     const q = quotes?.[pos.symbol];
-    const price = q?.price ?? null;
-    const currency = q?.currency ?? "USD";
+    const rawCurrency = q?.currency ?? "USD";
+    const isSubUnit = rawCurrency in SUB_UNIT;
+    const currency = SUB_UNIT[rawCurrency] ?? rawCurrency;
+    const subUnitDiv = isSubUnit ? 100 : 1;
     const rate = currency === "USD" ? 1 : (fxRates?.[currency] ?? 0);
 
-    const cost = pos.quantity * pos.avg_buy_price;
+    const price = q?.price != null ? q.price / subUnitDiv : null;
+    const avgBuy = pos.avg_buy_price / subUnitDiv;
+    const cost = pos.quantity * avgBuy;
     const value = price ? pos.quantity * price : cost;
     const pnl = price ? value - cost : 0;
     const pnlPct = cost > 0 ? (pnl / cost) * 100 : 0;
@@ -91,6 +101,7 @@ export function usePortfolioStats() {
 
     enriched.push({
       ...pos,
+      avg_buy_price: avgBuy,
       currentPrice: price,
       marketValue: value,
       marketValueUsd: valueUsd,

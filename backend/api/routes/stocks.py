@@ -1,4 +1,6 @@
+import asyncio
 import re
+from concurrent.futures import ThreadPoolExecutor
 
 import yfinance as yf
 from fastapi import APIRouter, HTTPException, Depends, Query, Path
@@ -207,6 +209,35 @@ async def get_exchange_rates(currencies: str = Query(..., description="Comma-sep
         raise HTTPException(status_code=400, detail="No currencies provided")
     rates = stock_fetcher.get_exchange_rates(codes)
     return {"base": "USD", "rates": rates}
+
+
+_batch_pool = ThreadPoolExecutor(max_workers=8)
+
+
+@router.get("/batch")
+async def get_batch_quotes(symbols: str = Query(..., description="Comma-separated symbols (max 15)")):
+    syms = [s.strip().upper() for s in symbols.split(",") if s.strip()][:15]
+    if not syms:
+        raise HTTPException(status_code=400, detail="No symbols provided")
+
+    loop = asyncio.get_event_loop()
+
+    async def fetch_one(sym: str) -> dict | None:
+        try:
+            return await loop.run_in_executor(_batch_pool, stock_fetcher.get_quote_yfinance, sym)
+        except Exception:
+            return None
+
+    results = await asyncio.gather(*[fetch_one(s) for s in syms])
+
+    quotes = []
+    for r in results:
+        if r:
+            quotes.append({
+                "symbol": r["symbol"], "name": r["name"],
+                "price": r["price"], "change_pct": r["change_pct"],
+            })
+    return quotes
 
 
 _SYM = Path(..., min_length=1, max_length=20, pattern=r"^[A-Za-z0-9.\-\^=]+$")

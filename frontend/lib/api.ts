@@ -84,6 +84,22 @@ export async function getHistory(
   );
 }
 
+// ── Batch quotes ─────────────────────────────────────────────────────────────
+
+export interface TickerQuote {
+  symbol: string;
+  name: string;
+  price: number | null;
+  change_pct: number | null;
+}
+
+export async function getBatchQuotes(symbols: string[]): Promise<TickerQuote[]> {
+  if (!symbols.length) return [];
+  return apiFetch<TickerQuote[]>(
+    `/api/stocks/batch?symbols=${encodeURIComponent(symbols.join(","))}`
+  );
+}
+
 // ── Indicators ────────────────────────────────────────────────────────────────
 
 export async function getIndicators(symbol: string): Promise<Record<string, number | null | string>> {
@@ -212,8 +228,12 @@ export function streamAnalysis({
     }
 
     if (!res.ok) {
-      const body = await res.json().catch(() => ({ detail: res.statusText }));
-      onError(body?.detail ?? `API error ${res.status}`);
+      const body = await res.json().catch(() => null);
+      const detail = body?.detail;
+      const msg = typeof detail === "string" ? detail
+        : Array.isArray(detail) ? detail.map((d: Record<string, unknown>) => d.msg).join("; ")
+        : `Request failed (${res.status})`;
+      onError(msg);
       return;
     }
 

@@ -207,6 +207,12 @@ export default function PredictionCard({ symbol }: Props) {
         {(pred.training_accuracy * 100).toFixed(1)}% test accuracy
         <span className="ml-1 opacity-60">(50% = random)</span>
       </p>
+
+      {/* Disclaimer */}
+      <p className="text-[10px] mt-2 leading-relaxed" style={{ color: "var(--text-muted)", opacity: 0.7 }}>
+        This is a statistical model based on historical technical indicators. It is not financial advice.
+        Past patterns do not guarantee future results. Always do your own research before making investment decisions.
+      </p>
     </div>
   );
 }

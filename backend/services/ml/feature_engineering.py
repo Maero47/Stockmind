@@ -46,6 +46,7 @@ def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
     # ── Volume ratio ─────────────────────────────────────────────────────────
     df["vol_sma20"]    = vol.rolling(20).mean()
     df["vol_ratio"]    = vol / df["vol_sma20"]
+    df["vol_ratio"]    = df["vol_ratio"].fillna(1.0)
 
     # ── Price momentum ────────────────────────────────────────────────────────
     df["return_1d"]  = close.pct_change(1)
@@ -94,13 +95,18 @@ def build_feature_matrix(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series | No
     df = compute_indicators(df.copy())
 
     # Label: next-day close vs today's close — BINARY (UP=1 / DOWN=0)
-    # Rows within ±0.5% are excluded from training (ambiguous signal).
+    # Rows within the noise band are excluded from training (ambiguous signal).
     # HOLD is decided at inference time when model confidence is low.
     df["next_return"] = df["close"].pct_change(1).shift(-1)
-    df["label"] = np.where(df["next_return"] > 0.005, 1, 0)  # 1=UP, 0=DOWN
 
-    # Drop ambiguous ±0.5% rows from training only
-    df = df[np.abs(df["next_return"]) > 0.005]
+    # Adaptive threshold: 25% of median absolute daily return (min 0.05%, max 0.5%)
+    median_move = df["next_return"].abs().median()
+    threshold = float(np.clip(median_move * 0.25, 0.0005, 0.005))
+
+    df["label"] = np.where(df["next_return"] > threshold, 1, 0)
+
+    # Drop ambiguous rows from training only
+    df = df[np.abs(df["next_return"]) > threshold]
     df = df.dropna(subset=FEATURE_COLUMNS + ["label"])
 
     X = df[FEATURE_COLUMNS]

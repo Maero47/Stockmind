@@ -22,8 +22,9 @@ export function useFinnhubTicker(symbol: string) {
   const wsRef  = useRef<WebSocket | null>(null);
   const active = useRef(false);
 
-  // Only connect for real stocks — not crypto (handled by Binance)
-  const shouldConnect = !!symbol && !CRYPTO_SYMBOLS.has(symbol.toUpperCase()) && !!process.env.NEXT_PUBLIC_FINNHUB_KEY;
+  const upper = symbol.toUpperCase();
+  const isCryptoOrForex = CRYPTO_SYMBOLS.has(upper) || upper.includes("=");
+  const shouldConnect = !!symbol && !isCryptoOrForex && !!process.env.NEXT_PUBLIC_FINNHUB_KEY;
 
   useEffect(() => {
     if (!shouldConnect || typeof window === "undefined") return;
