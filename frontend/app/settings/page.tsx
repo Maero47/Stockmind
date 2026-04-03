@@ -10,7 +10,7 @@ import {
 import Navbar from "@/components/layout/Navbar";
 import { useStore } from "@/lib/store";
 import { PROVIDERS } from "@/lib/types";
-import type { AIProvider } from "@/lib/types";
+import type { AIProvider, KeyProvider } from "@/lib/types";
 import { testProviderKey, listSavedKeys, saveKey, deleteKey } from "@/lib/api";
 import { useNotificationSettings } from "@/hooks/useNotificationSettings";
 import { playSound } from "@/lib/sounds";
@@ -58,7 +58,7 @@ function ToastList({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id: num
 
 // ── Provider details ──────────────────────────────────────────────────────────
 
-const PROVIDER_DETAILS: Record<AIProvider, {
+const PROVIDER_DETAILS: Record<KeyProvider, {
   tagline: string;
   freeTier: string | null;
   logo: string;
@@ -93,7 +93,7 @@ const PROVIDER_DETAILS: Record<AIProvider, {
 // ── Provider card ─────────────────────────────────────────────────────────────
 
 interface ProviderCardProps {
-  id: AIProvider;
+  id: KeyProvider;
   isLoggedIn: boolean;
   onToast: (kind: ToastKind, msg: string) => void;
 }
@@ -633,7 +633,7 @@ export default function SettingsPage() {
         const providers = rows.map((r) => r.provider as AIProvider);
         setSavedProviders(providers);
         // Auto-switch active provider to a saved one if current has no local key
-        if (providers.length > 0 && !apiKeys[activeProvider]) {
+        if (providers.length > 0 && activeProvider !== "free" && !apiKeys[activeProvider]) {
           setActiveProvider(providers[0]);
         }
       })
@@ -647,7 +647,7 @@ export default function SettingsPage() {
     setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 4000);
   };
 
-  const connectedCount = (["groq", "openai", "anthropic", "gemini"] as AIProvider[]).filter(
+  const connectedCount = (["groq", "openai", "anthropic", "gemini"] as KeyProvider[]).filter(
     (id) => Boolean(apiKeys[id]) || savedProviders.includes(id)
   ).length;
 
@@ -737,7 +737,7 @@ export default function SettingsPage() {
 
         {/* ── Provider cards ──────────────────────────────────────────── */}
         <div className="space-y-4 mb-10">
-          {(["groq", "openai", "anthropic", "gemini"] as AIProvider[]).map((id) => (
+          {(["groq", "openai", "anthropic", "gemini"] as KeyProvider[]).map((id) => (
             <ProviderCard key={id} id={id} isLoggedIn={isLoggedIn} onToast={pushToast} />
           ))}
         </div>

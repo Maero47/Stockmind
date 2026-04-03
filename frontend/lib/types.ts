@@ -85,7 +85,8 @@ export interface Prediction {
 
 // ── AI / Chat ─────────────────────────────────────────────────────────────────
 
-export type AIProvider = "groq" | "openai" | "anthropic" | "gemini";
+export type KeyProvider = "groq" | "openai" | "anthropic" | "gemini";
+export type AIProvider = "free" | KeyProvider;
 export type MessageRole = "user" | "assistant" | "system";
 
 export interface ChatMessage {
@@ -258,6 +259,14 @@ export interface ProviderInfo {
 }
 
 export const PROVIDERS: ProviderInfo[] = [
+  {
+    id: "free",
+    name: "Free",
+    model: "Llama 3.3 70B",
+    description: "10 free messages per day. No API key needed.",
+    freeUrl: "",
+    color: "#00E676",
+  },
   {
     id: "groq",
     name: "Groq",

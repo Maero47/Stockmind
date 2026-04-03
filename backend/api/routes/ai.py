@@ -1,7 +1,3 @@
-import os
-import time
-from collections import defaultdict
-
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, constr
@@ -10,18 +6,27 @@ from api.dependencies.auth import get_optional_user
 from api.routes.keys import get_decrypted_key
 from services.ai.llm_router import get_chat_model
 from services.ai.analyst_chain import stream_analysis
+from services.usage.free_tier import get_config, get_usage_count, record_usage
 
 router = APIRouter(prefix="/api/ai", tags=["ai"])
 
-# ── Groq fallback config ──────────────────────────────────────────────────────
 
-_FALLBACK_ENABLED = os.getenv("GROQ_FALLBACK_ENABLED", "false").lower() == "true"
-_FALLBACK_LIMIT   = int(os.getenv("GROQ_FALLBACK_DAILY_LIMIT", "10"))
-_fallback_counts: dict[str, list[float]] = defaultdict(list)
+@router.get("/free-remaining")
+async def free_remaining(
+    user: dict | None = Depends(get_optional_user),
+):
+    cfg = get_config()
+    limit = cfg["daily_limit"]
+
+    if not cfg["enabled"] or not user:
+        return {"limit": limit, "used": 0, "remaining": limit}
+
+    used = await get_usage_count(user["user_id"])
+    return {"limit": limit, "used": used, "remaining": max(0, limit - used)}
 
 
 class HistoryMessage(BaseModel):
-    role:    str   # "user" | "assistant"
+    role:    str
     content: str
 
 class AnalyzeRequest(BaseModel):
@@ -34,74 +39,59 @@ class AnalyzeRequest(BaseModel):
 async def analyze(
     request: Request,
     body:    AnalyzeRequest,
-    x_ai_provider: str = Header(default="groq",  description="AI provider: openai | anthropic | groq | gemini"),
-    x_ai_key:      str = Header(default="",       description="API key for the chosen provider"),
+    x_ai_provider: str = Header(default="groq"),
+    x_ai_key:      str = Header(default=""),
     user:    dict | None = Depends(get_optional_user),
 ):
-    """
-    Streams an AI analysis of the given stock symbol via SSE.
-
-    Authentication (optional):
-      - Include  Authorization: Bearer <supabase_access_token>  for per-user tracking.
-      - Without a token, requests are tracked by IP against a stricter limit.
-
-    AI key resolution (in order):
-      1. X-AI-Key header (user's own key — unlimited)
-      2. Server GROQ_API_KEY fallback (if GROQ_FALLBACK_ENABLED=true, rate-limited)
-      3. 400 error if neither is available
-
-    Returns a text/event-stream (SSE) response.
-    Each chunk: `data: <token>\\n\\n`
-    Final:       `data: [DONE]\\n\\n`
-    On error:    `data: [ERROR] <message>\\n\\n`
-    """
     provider = x_ai_provider.strip() or "groq"
     api_key  = x_ai_key.strip()
+    free_remaining_count: int | None = None
+    is_free = provider == "free"
 
-    # ── Resolve API key ───────────────────────────────────────────────────────
-    if not api_key and user:
-        # Try to fetch the user's saved (encrypted) key from Supabase
+    if not is_free and not api_key and user:
         saved = await get_decrypted_key(user["user_id"], provider)
         if saved:
             api_key = saved
 
-    if not api_key:
-        if not _FALLBACK_ENABLED:
+    if is_free or not api_key:
+        cfg = get_config()
+
+        if not cfg["enabled"] or not user:
             raise HTTPException(
                 status_code=400,
-                detail="No API key provided. Add your key in Settings.",
+                detail="Sign in to use free AI, or add your own API key in Settings.",
             )
 
-        # Rate-limit the fallback by user_id (authenticated) or IP (anonymous)
-        rate_key = user["user_id"] if user else (request.client.host if request.client else "unknown")
-        now      = time.time()
-        window   = 86_400  # 24 h
-        hits     = _fallback_counts[rate_key]
-        _fallback_counts[rate_key] = [t for t in hits if now - t < window]
+        limit = cfg["daily_limit"]
+        uid = user["user_id"]
+        used = await get_usage_count(uid)
 
-        if len(_fallback_counts[rate_key]) >= _FALLBACK_LIMIT:
+        if used >= limit:
             raise HTTPException(
                 status_code=429,
-                detail=(
-                    f"Free AI limit reached ({_FALLBACK_LIMIT} requests/day). "
-                    "Add your own API key in Settings for unlimited use."
-                ),
+                detail=f"Free AI limit reached ({limit} requests/day). Add your own API key in Settings for unlimited use.",
             )
 
-        _fallback_counts[rate_key].append(now)
-        api_key  = os.environ.get("GROQ_API_KEY", "")
+        await record_usage(uid)
+        free_remaining_count = limit - used - 1
+        api_key  = cfg["groq_api_key"]
         provider = "groq"
 
         if not api_key:
             raise HTTPException(status_code=500, detail="Fallback key not configured on this server.")
 
-    # ── Build LangChain model ─────────────────────────────────────────────────
     try:
         model = get_chat_model(provider=provider, api_key=api_key)
     except ValueError:
         raise HTTPException(status_code=400, detail="Failed to process request")
 
-    # ── Stream response ───────────────────────────────────────────────────────
+    resp_headers: dict[str, str] = {
+        "Cache-Control":     "no-cache",
+        "X-Accel-Buffering": "no",
+    }
+    if free_remaining_count is not None:
+        resp_headers["X-Free-Remaining"] = str(free_remaining_count)
+
     return StreamingResponse(
         stream_analysis(
             symbol=body.symbol.upper(),
@@ -110,9 +100,5 @@ async def analyze(
             chat_history=[m.model_dump() for m in body.history],
         ),
         media_type="text/event-stream",
-        headers={
-            "Cache-Control":               "no-cache",
-            "X-Accel-Buffering":           "no",
-            "Access-Control-Allow-Origin": "*",
-        },
+        headers=resp_headers,
     )

@@ -109,7 +109,7 @@ export const useStore = create<StockMindState>()(
         set({ selectedSymbol: symbol.toUpperCase() }),
 
       // ── Provider ─────────────────────────────────────────────────────────
-      activeProvider: "groq",
+      activeProvider: "free",
       setActiveProvider: (provider) => set({ activeProvider: provider }),
 
       // ── API Keys ─────────────────────────────────────────────────────────
@@ -226,4 +226,4 @@ export const usePredictions     = () => useStore((s) => s.predictions);
 export const useIsChatStreaming  = () => useStore((s) => s.isChatStreaming);
 
 export const useActiveApiKey = () =>
-  useStore((s) => s.apiKeys[s.activeProvider]);
+  useStore((s) => s.activeProvider === "free" ? "free" : s.apiKeys[s.activeProvider]);

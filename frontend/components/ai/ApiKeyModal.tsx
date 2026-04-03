@@ -5,11 +5,11 @@ import { createPortal } from "react-dom";
 import { X, Eye, EyeOff, ExternalLink, ShieldCheck, Cloud, Loader2 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { PROVIDERS } from "@/lib/types";
-import type { AIProvider } from "@/lib/types";
+import type { KeyProvider } from "@/lib/types";
 import { saveKey, testProviderKey } from "@/lib/api";
 
 interface Props {
-  provider: AIProvider;
+  provider: KeyProvider;
   onClose: () => void;
 }
 

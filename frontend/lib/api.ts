@@ -7,6 +7,7 @@ import type {
   TimePeriod,
   TimeInterval,
   AIProvider,
+  KeyProvider,
 } from "./types";
 
 // ── Config ────────────────────────────────────────────────────────────────────
@@ -117,7 +118,17 @@ export async function getPrediction(symbol: string): Promise<Prediction> {
 // ── News ──────────────────────────────────────────────────────────────────────
 
 export async function getNews(symbol: string): Promise<NewsItem[]> {
-  return apiFetch<NewsItem[]>(`/api/news/${encodeURIComponent(symbol)}`);
+  const { useStore } = require("./store") as typeof import("./store");
+  const { activeProvider, apiKeys } = useStore.getState();
+  const headers: Record<string, string> = {};
+  if (activeProvider !== "free") {
+    const key = apiKeys[activeProvider] ?? "";
+    if (key) {
+      headers["X-AI-Provider"] = activeProvider;
+      headers["X-AI-Key"] = key;
+    }
+  }
+  return apiFetch<NewsItem[]>(`/api/news/${encodeURIComponent(symbol)}`, { headers });
 }
 
 // ── Search ────────────────────────────────────────────────────────────────────
@@ -169,6 +180,12 @@ export async function deleteKey(provider: string): Promise<void> {
   });
 }
 
+// ── Free tier ────────────────────────────────────────────────────────────────
+
+export async function getFreeRemaining(): Promise<{ limit: number; used: number; remaining: number }> {
+  return apiFetch("/api/ai/free-remaining");
+}
+
 // ── AI Streaming ──────────────────────────────────────────────────────────────
 
 export interface ChatHistoryMessage {
@@ -185,6 +202,7 @@ export interface StreamAnalysisOptions {
   onToken: (token: string) => void;
   onDone: () => void;
   onError: (message: string) => void;
+  onMeta?: (meta: { freeRemaining?: number }) => void;
 }
 
 /**
@@ -202,6 +220,7 @@ export function streamAnalysis({
   onToken,
   onDone,
   onError,
+  onMeta,
 }: StreamAnalysisOptions): AbortController {
   const controller = new AbortController();
 
@@ -235,6 +254,11 @@ export function streamAnalysis({
         : `Request failed (${res.status})`;
       onError(msg);
       return;
+    }
+
+    if (onMeta) {
+      const fr = res.headers.get("X-Free-Remaining");
+      if (fr !== null) onMeta({ freeRemaining: parseInt(fr, 10) });
     }
 
     const reader = res.body?.getReader();
@@ -293,10 +317,10 @@ export function streamAnalysis({
  * Tests an AI provider key by sending a minimal 1-token request.
  * Returns { ok: true } on success or { ok: false, error: string } on failure.
  */
-function _friendlyKeyError(raw: string, provider: AIProvider): string {
+function _friendlyKeyError(raw: string, provider: KeyProvider): string {
   const s = raw.toLowerCase();
   if (s.includes("401") || s.includes("authentication") || s.includes("invalid") || s.includes("incorrect") || s.includes("unauthorized") || s.includes("api key")) {
-    const names: Record<AIProvider, string> = { groq: "Groq", openai: "OpenAI", anthropic: "Anthropic", gemini: "Gemini" };
+    const names: Record<KeyProvider, string> = { groq: "Groq", openai: "OpenAI", anthropic: "Anthropic", gemini: "Gemini" };
     return `Invalid ${names[provider]} API key — double-check it and try again.`;
   }
   if (s.includes("403") || s.includes("forbidden") || s.includes("permission") || s.includes("quota")) {
@@ -318,7 +342,7 @@ let _lastKeyTest = 0;
 const KEY_TEST_COOLDOWN = 5_000;
 
 export async function testProviderKey(
-  provider: AIProvider,
+  provider: KeyProvider,
   apiKey: string
 ): Promise<{ ok: boolean; error?: string }> {
   const now = Date.now();

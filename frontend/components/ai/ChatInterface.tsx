@@ -6,7 +6,7 @@ import {
 import { Send, Square, Plus, Bot, History, ChevronDown, X } from "lucide-react";
 import { useStore } from "@/lib/store";
 import {
-  streamAnalysis,
+  streamAnalysis, getFreeRemaining,
   getConversations, createConversation, getConversationMessages,
   addConversationMessage, deleteConversation,
 } from "@/lib/api";
@@ -37,6 +37,7 @@ export default function ChatInterface({ symbol }: Props) {
   } = useStore();
 
   const [input,  setInput]  = useState("");
+  const [freeRemaining, setFreeRemaining] = useState<number | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const abortRef            = useRef<AbortController | null>(null);
@@ -62,7 +63,12 @@ export default function ChatInterface({ symbol }: Props) {
       prevSymbolRef.current = symbol;
     }
 
-    if (!user) return;
+    if (!user || activeProvider === "free") {
+      setConversations([]);
+      setActiveConversationId(null);
+      clearChat();
+      return;
+    }
     getConversations()
       .then((convos) => {
         setConversations(convos);
@@ -85,7 +91,7 @@ export default function ChatInterface({ symbol }: Props) {
         }
       })
       .catch(() => {});
-  }, [user, symbol]);
+  }, [user, symbol, activeProvider]);
 
   // Close history dropdown on outside click
   useEffect(() => {
@@ -100,12 +106,18 @@ export default function ChatInterface({ symbol }: Props) {
 
   const symbolConversations = conversations.filter((c) => c.symbol === symbol);
 
-  const activeKey       = apiKeys[activeProvider];
+  const isFree          = activeProvider === "free";
+  const activeKey       = isFree ? "" : apiKeys[activeProvider];
   const hasCloudKey     = savedProviders.includes(activeProvider as AIProvider);
-  const hasKey          = Boolean(activeKey) || hasCloudKey;
+  const hasKey          = isFree || Boolean(activeKey) || hasCloudKey;
+
+  useEffect(() => {
+    if (isFree && user) getFreeRemaining().then((r) => setFreeRemaining(r.remaining)).catch(() => {});
+    else if (!isFree) setFreeRemaining(null);
+  }, [isFree, user]);
 
   const persistMessages = useCallback(async (userText: string, assistantText: string) => {
-    if (!user) return;
+    if (!user || useStore.getState().activeProvider === "free") return;
     try {
       let convId = useStore.getState().activeConversationId;
       if (!convId) {
@@ -156,8 +168,8 @@ export default function ChatInterface({ symbol }: Props) {
     abortRef.current = streamAnalysis({
       symbol,
       question: trimmed,
-      provider: activeProvider,
-      apiKey:   activeKey,
+      provider: isFree ? "free" : activeProvider,
+      apiKey:   isFree ? "" : activeKey,
       history,
       onToken: (token) => {
         accumulated += token;
@@ -167,10 +179,12 @@ export default function ChatInterface({ symbol }: Props) {
         updateLastMessage(accumulated, false);
         setIsChatStreaming(false);
         persistMessages(trimmed, accumulated);
+        if (isFree) getFreeRemaining().then((r) => setFreeRemaining(r.remaining)).catch(() => {});
       },
       onError: (msg) => {
         updateLastMessage(`Error: ${msg}`, false);
         setIsChatStreaming(false);
+        if (isFree) getFreeRemaining().then((r) => setFreeRemaining(r.remaining)).catch(() => {});
       },
     });
   }, [
@@ -257,7 +271,7 @@ export default function ChatInterface({ symbol }: Props) {
           </div>
         </div>
         <div className="flex items-center gap-1">
-          {user && symbolConversations.length > 0 && (
+          {user && !isFree && symbolConversations.length > 0 && (
             <div className="relative" ref={historyRef}>
               <button
                 onClick={() => setShowHistory((v) => !v)}
@@ -448,7 +462,12 @@ export default function ChatInterface({ symbol }: Props) {
             </button>
           )}
         </div>
-        <p className="text-xs text-center mt-2" style={{ color: "var(--text-muted)" }}>
+        {isFree && (
+          <p className="text-[10px] text-center mt-2" style={{ color: "var(--accent-green)", opacity: 0.8 }}>
+            Free tier{freeRemaining !== null ? `: ${freeRemaining} of 10 remaining today` : ": 10 messages/day"} -- conversations are not saved
+          </p>
+        )}
+        <p className="text-xs text-center mt-1.5" style={{ color: "var(--text-muted)" }}>
           Shift+Enter for new line
         </p>
         <p className="text-[10px] text-center mt-1" style={{ color: "var(--text-muted)", opacity: 0.6 }}>

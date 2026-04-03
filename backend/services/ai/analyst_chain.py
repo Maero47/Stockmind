@@ -9,6 +9,7 @@ and forwarded as a Server-Sent Events (SSE) StreamingResponse.
 import math
 from typing import AsyncGenerator
 
+import yfinance as yf
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -91,9 +92,23 @@ def _build_context(symbol: str) -> dict:
         ml_confidence = 0.0
         top_features  = "N/A"
 
+    # Recent news headlines
+    news_lines = []
+    try:
+        raw_news = yf.Ticker(symbol).news or []
+        for item in raw_news[:6]:
+            content = item.get("content", {})
+            headline = content.get("title") or item.get("title") or ""
+            source = content.get("provider", {}).get("displayName") or item.get("publisher") or ""
+            if headline:
+                news_lines.append(f"- {headline}" + (f" ({source})" if source else ""))
+    except Exception:
+        pass
+
     return {
         "symbol":         symbol,
         "name":           quote.get("name", symbol),
+        "news":           "\n".join(news_lines) if news_lines else "No recent news available.",
         "price":          quote.get("price"),
         "change_pct":     quote.get("change_pct") or 0.0,
         "currency":       quote.get("currency", "USD"),
@@ -141,10 +156,13 @@ ML PREDICTION:
 Signal:      {ml_signal} ({ml_confidence:.0f}% confidence)
 Key Factors: {top_features}
 
+RECENT NEWS:
+{news}
+
 INSTRUCTIONS:
 - If asked for a full analysis, use this structure:
   1. **Market Overview** 2. **Technical Analysis** 3. **ML Signal**
-  4. **Key Levels** 5. **Risk Factors** 6. **Recommendation**
+  4. **News Sentiment** 5. **Key Levels** 6. **Risk Factors** 7. **Recommendation**
 - For specific questions (e.g. "what is the RSI?"), answer concisely and directly.
 - Always use the exact numbers above. Never make up data.
 - Always use the correct currency ({currency}) when mentioning prices. Never default to USD unless the stock is actually priced in USD.
@@ -176,6 +194,7 @@ def _build_system_prompt(ctx: dict) -> str:
         ml_signal=ctx["ml_signal"],
         ml_confidence=ctx["ml_confidence"],
         top_features=ctx["top_features"],
+        news=ctx["news"],
     )
 
 

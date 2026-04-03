@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Send, Square, Bot, Briefcase } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { streamAnalysis } from "@/lib/api";
+import { streamAnalysis, getFreeRemaining } from "@/lib/api";
 import type { AIProvider } from "@/lib/types";
 import type { ChatMessage as ChatMessageType } from "@/lib/types";
 import type { EnrichedPosition, PortfolioSummary } from "@/hooks/usePortfolioStats";
@@ -62,11 +62,12 @@ interface PortfolioChatProps {
 
 export default function PortfolioChat({ positions, summary }: PortfolioChatProps) {
   const {
-    activeProvider, apiKeys, savedProviders,
+    activeProvider, apiKeys, savedProviders, user,
   } = useStore();
 
   const [messages, setMessages] = useState<ChatMessageType[]>([]);
   const [input, setInput] = useState("");
+  const [freeRemaining, setFreeRemaining] = useState<number | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -79,9 +80,15 @@ export default function PortfolioChat({ positions, summary }: PortfolioChatProps
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const activeKey = apiKeys[activeProvider];
+  const isFree = activeProvider === "free";
+
+  useEffect(() => {
+    if (isFree && user) getFreeRemaining().then((r) => setFreeRemaining(r.remaining)).catch(() => {});
+    else if (!isFree) setFreeRemaining(null);
+  }, [isFree, user]);
+  const activeKey = isFree ? "" : apiKeys[activeProvider];
   const hasCloudKey = savedProviders.includes(activeProvider as AIProvider);
-  const hasKey = Boolean(activeKey) || hasCloudKey;
+  const hasKey = isFree || Boolean(activeKey) || hasCloudKey;
 
   const addMsg = useCallback((msg: ChatMessageType) => {
     setMessages((prev) => [...prev, msg]);
@@ -131,8 +138,8 @@ export default function PortfolioChat({ positions, summary }: PortfolioChatProps
     abortRef.current = streamAnalysis({
       symbol: positions[0]?.symbol ?? "SPY",
       question: questionWithContext,
-      provider: activeProvider,
-      apiKey: activeKey,
+      provider: isFree ? "free" : activeProvider,
+      apiKey: isFree ? "" : activeKey,
       history,
       onToken: (token) => {
         accumulated += token;
@@ -141,10 +148,12 @@ export default function PortfolioChat({ positions, summary }: PortfolioChatProps
       onDone: () => {
         updateLast(accumulated, false);
         setIsStreaming(false);
+        if (isFree) getFreeRemaining().then((r) => setFreeRemaining(r.remaining)).catch(() => {});
       },
       onError: (msg) => {
         updateLast(`Error: ${msg}`, false);
         setIsStreaming(false);
+        if (isFree) getFreeRemaining().then((r) => setFreeRemaining(r.remaining)).catch(() => {});
       },
     });
   }, [isStreaming, addMsg, updateLast, positions, summary, messages, activeProvider, activeKey, hasKey]);
@@ -318,7 +327,12 @@ export default function PortfolioChat({ positions, summary }: PortfolioChatProps
             </button>
           )}
         </div>
-        <p className="text-xs text-center mt-2" style={{ color: "var(--text-muted)" }}>
+        {isFree && (
+          <p className="text-[10px] text-center mt-2" style={{ color: "var(--accent-green)", opacity: 0.8 }}>
+            Free tier{freeRemaining !== null ? `: ${freeRemaining} of 10 remaining today` : ": 10 messages/day"} -- conversations are not saved
+          </p>
+        )}
+        <p className="text-xs text-center mt-1.5" style={{ color: "var(--text-muted)" }}>
           Shift+Enter for new line
         </p>
         <p className="text-[10px] text-center mt-1" style={{ color: "var(--text-muted)", opacity: 0.6 }}>

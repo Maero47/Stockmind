@@ -8,8 +8,6 @@ langchain-openai==0.2.0
 langchain-anthropic==0.2.0
 langchain-groq==0.2.0
 langchain-google-genai==2.0.0
-transformers==4.44.0
-torch==2.4.0
 xgboost==2.1.0
 prophet==1.1.5
 pandas==2.2.0

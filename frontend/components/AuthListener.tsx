@@ -48,7 +48,7 @@ export default function AuthListener() {
         // Auto-switch active provider to a saved one
         if (providers.length > 0) {
           const { apiKeys, activeProvider } = useStore.getState();
-          if (!apiKeys[activeProvider]) {
+          if (activeProvider !== "free" && !apiKeys[activeProvider]) {
             setActiveProvider(providers[0]);
           }
         }
