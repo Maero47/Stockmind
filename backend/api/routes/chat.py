@@ -1,5 +1,6 @@
+from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, constr
 from sqlalchemy.ext.asyncio import AsyncSession
 from db.database import get_db
 from db import crud
@@ -17,8 +18,8 @@ class ConversationResponse(BaseModel):
 
 
 class CreateConversationRequest(BaseModel):
-    symbol: str | None = None
-    title: str | None = None
+    symbol: constr(max_length=20) | None = None  # type: ignore[valid-type]
+    title: constr(max_length=200) | None = None  # type: ignore[valid-type]
 
 
 class MessageResponse(BaseModel):
@@ -30,8 +31,8 @@ class MessageResponse(BaseModel):
 
 
 class AddMessageRequest(BaseModel):
-    role: str
-    content: str
+    role: Literal["user", "assistant"]
+    content: constr(max_length=50000)  # type: ignore[valid-type]
 
 
 @router.get("/conversations", response_model=list[ConversationResponse])
@@ -88,8 +89,6 @@ async def add_message(
     user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    if body.role not in ("user", "assistant"):
-        raise HTTPException(status_code=400, detail="Invalid message role")
     msg = await crud.add_chat_message(db, conv_id, body.role, body.content)
     return {
         "id": msg.id, "conversation_id": msg.conversation_id,

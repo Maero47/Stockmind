@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, Briefcase, User, Settings } from "lucide-react";
+import { BarChart3, Briefcase, ArrowLeftRight, User, Settings } from "lucide-react";
 
 const tabs = [
-  { href: "/dashboard", icon: BarChart3, label: "Dashboard" },
-  { href: "/portfolio", icon: Briefcase, label: "Portfolio" },
-  { href: "/profile",   icon: User,      label: "Profile" },
-  { href: "/settings",  icon: Settings,  label: "Settings" },
+  { href: "/dashboard",  icon: BarChart3,      label: "Dashboard" },
+  { href: "/portfolio",  icon: Briefcase,      label: "Portfolio" },
+  { href: "/converter",  icon: ArrowLeftRight, label: "Converter" },
+  { href: "/profile",    icon: User,           label: "Profile" },
+  { href: "/settings",   icon: Settings,       label: "Settings" },
 ] as const;
 
 export default function MobileNav() {

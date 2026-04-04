@@ -1,6 +1,6 @@
 import re
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, constr
 from sqlalchemy.ext.asyncio import AsyncSession
 from db.database import get_db
 from db import crud
@@ -15,11 +15,11 @@ class WatchlistItemResponse(BaseModel):
 
 
 class AddSymbolRequest(BaseModel):
-    symbol: str
+    symbol: constr(min_length=1, max_length=20, pattern=r"^[A-Za-z0-9.\-^=]+$")  # type: ignore[valid-type]
 
 
 class ReorderRequest(BaseModel):
-    symbols: list[str]
+    symbols: list[constr(min_length=1, max_length=20, pattern=r"^[A-Za-z0-9.\-^=]+$")]  # type: ignore[valid-type]
 
 
 @router.get("", response_model=list[WatchlistItemResponse])
