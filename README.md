@@ -1,6 +1,6 @@
 # StockMind
 
-AI-powered stock and crypto analysis platform. Real-time prices, technical indicators, ML predictions, and AI chat — all with your own API keys.1
+AI-powered stock and crypto analysis platform. Real-time prices, technical indicators, ML predictions, and AI chat — all with your own API keys.
 
 ---
 
